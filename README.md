@@ -129,20 +129,34 @@ When running on NVIDIA Jetson platforms:
 1. Run the script:
 
 ```bash
+# Basic usage without targeting any specific marker
 python3 oak_d_aruco_6x6_detector.py
+
+# Target and highlight a specific marker (e.g., marker with ID 5)
+python3 oak_d_aruco_6x6_detector.py --target 5
+
+# Short form of the target argument
+python3 oak_d_aruco_6x6_detector.py -t 10
 ```
 
 Or use the executable directly:
 
 ```bash
 ./oak_d_aruco_6x6_detector.py
+./oak_d_aruco_6x6_detector.py --target 5
 ```
 
 2. The script will open two windows:
    - RGB: Shows the color camera feed with detected markers, their IDs, orientation, and 3D position
    - Depth: Shows the depth map from the stereo cameras
 
-3. Press 'q' to exit the program.
+3. When a target marker is specified and detected:
+   - It will be highlighted with a red border (instead of yellow)
+   - It will be labeled as "TARGET" above the marker
+   - Its spatial coordinates will be displayed in cyan text (instead of white)
+   - This makes it easy to track specific markers among multiple detected markers
+
+4. Press 'q' to exit the program.
 
 ## Camera Calibration
 

@@ -7,7 +7,15 @@ This script uses the Luxonis OAK-D camera to detect 6x6 ArUco markers,
 calculate their 3D position, and visualize the results.
 
 Usage:
+  python3 oak_d_aruco_6x6_detector.py [--target MARKER_ID]
+
+Options:
+  --target, -t MARKER_ID  Specify a target marker ID to highlight
+
+Examples:
   python3 oak_d_aruco_6x6_detector.py
+  python3 oak_d_aruco_6x6_detector.py --target 5
+  python3 oak_d_aruco_6x6_detector.py -t 10
 
 Press 'q' to exit the program.
 """
@@ -123,7 +131,11 @@ CALIB_DIR = "camera_calibration"
 os.makedirs(CALIB_DIR, exist_ok=True)
 
 class OakDArUcoDetector:
-    def __init__(self):
+    def __init__(self, target_id=None):
+        # Target marker ID to highlight
+        self.target_id = target_id
+        if self.target_id is not None:
+            print(f"Target marker ID: {self.target_id}")
         # Initialize ArUco detector using the method that worked during initialization
         if dictionary_method == "old":
             self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
@@ -244,18 +256,20 @@ class OakDArUcoDetector:
         rgb_cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         rgb_cam.setFps(30)
         
+        # Use CAM_B and CAM_C instead of deprecated LEFT and RIGHT
         mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
-        mono_left.setBoardSocket(dai.CameraBoardSocket.LEFT)
+        mono_left.setBoardSocket(dai.CameraBoardSocket.CAM_B)  # Updated from LEFT
         mono_right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
-        mono_right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+        mono_right.setBoardSocket(dai.CameraBoardSocket.CAM_C)  # Updated from RIGHT
         
         # StereoDepth configuration
         stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
-        stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
+        stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)  # Updated from RGB
         stereo.setOutputSize(rgb_cam.getPreviewWidth(), rgb_cam.getPreviewHeight())
         
         # Spatial location calculator configuration
-        spatial_calc.setWaitForConfigInput(False)
+        # Use inputConfig.setWaitForMessage() instead of setWaitForConfigInput
+        spatial_calc.inputConfig.setWaitForMessage(False)
         spatial_calc.inputDepth.setBlocking(False)
         
         # Initial config for spatial location calculator
@@ -279,8 +293,9 @@ class OakDArUcoDetector:
         Start the OAK-D camera and process frames
         """
         # Connect to device and start pipeline
-        self.device = dai.Device(self.pipeline)
-        self.device.startPipeline()
+        # Use Device() and startPipeline(pipeline) instead of Device(pipeline)
+        self.device = dai.Device()
+        self.device.startPipeline(self.pipeline)
         
         # Get output queues
         self.rgb_queue = self.device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
@@ -460,16 +475,41 @@ class OakDArUcoDetector:
                 xmax = int(roi.bottomRight().x)
                 ymax = int(roi.bottomRight().y)
                 
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 255, 0), 2)
+                # Check if this is the target marker
+                is_target = False
+                if self.target_id is not None and i < len(ids):
+                    marker_id = ids[i][0]
+                    if marker_id == self.target_id:
+                        is_target = True
+                
+                # Use different color for target marker
+                rect_color = (0, 0, 255) if is_target else (255, 255, 0)  # Red for target, yellow for others
+                rect_thickness = 3 if is_target else 2
+                
+                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), rect_color, rect_thickness)
                 
                 # Display spatial coordinates
+                text_color = (0, 255, 255) if is_target else (255, 255, 255)  # Cyan for target, white for others
+                
+                # Add "TARGET" label if this is the target marker
+                if is_target:
+                    cv2.putText(
+                        frame,
+                        "TARGET",
+                        (xmin + 10, ymin - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 0, 255),
+                        2
+                    )
+                
                 cv2.putText(
                     frame,
                     f"X: {x/1000:.2f} m",
                     (xmin + 10, ymin + 20),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
-                    (255, 255, 255),
+                    text_color,
                     2
                 )
                 cv2.putText(
@@ -478,7 +518,7 @@ class OakDArUcoDetector:
                     (xmin + 10, ymin + 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
-                    (255, 255, 255),
+                    text_color,
                     2
                 )
                 cv2.putText(
@@ -487,7 +527,7 @@ class OakDArUcoDetector:
                     (xmin + 10, ymin + 60),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
-                    (255, 255, 255),
+                    text_color,
                     2
                 )
 
@@ -495,8 +535,15 @@ def main():
     """
     Main function
     """
+    import argparse
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='OAK-D ArUco 6x6 Marker Detector')
+    parser.add_argument('--target', '-t', type=int, help='Target marker ID to highlight')
+    args = parser.parse_args()
+    
     print("Initializing OAK-D ArUco 6x6 Marker Detector...")
-    detector = OakDArUcoDetector()
+    detector = OakDArUcoDetector(target_id=args.target)
     detector.start()
 
 if __name__ == "__main__":
