@@ -27,26 +27,31 @@ This Python script uses the Luxonis OAK-D camera to detect 6x6 ArUco markers, ca
 
 ## Installation
 
-1. Run the setup dependencies script to check and install required packages:
+1. Run the installation script to check and install required packages:
 
 ```bash
 # Check and install dependencies
-python3 setup_dependencies.py
+python3 install_dependencies.py
 ```
 
 This script will:
 - Check if all required packages are installed
-- Install missing packages
+- Install specific versions of packages known to work together
 - Verify OpenCV ArUco module compatibility
+- Handle NumPy compatibility issues
+- Provide Jetson-specific instructions when needed
+
+You can also force reinstallation of all packages:
+
+```bash
+python3 install_dependencies.py --force
+```
 
 2. Alternatively, install the required Python packages manually:
 
 ```bash
-# Install dependencies individually
-pip install opencv-python numpy scipy depthai
-
-# Or use the provided requirements.txt file
-pip install -r requirements.txt
+# Install specific versions known to work together
+pip install numpy==1.26.4 opencv-contrib-python==4.5.5.62 depthai==2.24.0.0 scipy==1.15.2
 ```
 
 3. Connect your OAK-D camera to your computer.
@@ -63,7 +68,7 @@ The scripts have been updated to work with newer versions of OpenCV (4.5.0+) tha
 AttributeError: module 'cv2.aruco' has no attribute 'Dictionary_get'
 ```
 
-Run the `setup_dependencies.py` script to check your OpenCV installation and get recommendations for fixing compatibility issues.
+Run the `install_dependencies.py` script to check your OpenCV installation and get recommendations for fixing compatibility issues.
 
 ### NumPy 2.x Incompatibility
 
@@ -79,20 +84,13 @@ or
 AttributeError: _ARRAY_API not found
 ```
 
-You need to downgrade NumPy to a version below 2.0. You can use the provided script to fix this issue:
+You need to downgrade NumPy to a version below 2.0. The `install_dependencies.py` script will automatically install a compatible version of NumPy (1.26.4).
+
+You can also manually install a compatible version:
 
 ```bash
-# Automatically downgrade NumPy to a compatible version
-python3 fix_numpy_compatibility.py
+pip install numpy==1.26.4
 ```
-
-Or manually downgrade NumPy:
-
-```bash
-pip install numpy<2.0
-```
-
-The `setup_dependencies.py` script will detect this issue and provide instructions for resolving it.
 
 ### Missing ArUco Module
 
