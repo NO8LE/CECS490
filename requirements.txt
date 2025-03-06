@@ -1,5 +1,5 @@
 opencv-python>=4.5.0
 opencv-contrib-python>=4.5.0  # For ArUco module
-numpy>=1.19.0
+numpy>=1.19.0,<2.0  # OpenCV is not compatible with NumPy 2.x
 scipy>=1.6.0
 depthai>=2.15.0

@@ -53,7 +53,9 @@ pip install -r requirements.txt
 
 4. Clone this repository or download the scripts.
 
-## OpenCV Compatibility Note
+## Compatibility Notes
+
+### OpenCV ArUco API
 
 The scripts have been updated to work with newer versions of OpenCV (4.5.0+) that use a different ArUco API. If you encounter errors like:
 
@@ -62,6 +64,35 @@ AttributeError: module 'cv2.aruco' has no attribute 'Dictionary_get'
 ```
 
 Run the `setup_dependencies.py` script to check your OpenCV installation and get recommendations for fixing compatibility issues.
+
+### NumPy 2.x Incompatibility
+
+OpenCV is not compatible with NumPy 2.x. If you encounter errors like:
+
+```
+A module that was compiled using NumPy 1.x cannot be run in NumPy 2.2.3 as it may crash.
+```
+
+or
+
+```
+AttributeError: _ARRAY_API not found
+```
+
+You need to downgrade NumPy to a version below 2.0. You can use the provided script to fix this issue:
+
+```bash
+# Automatically downgrade NumPy to a compatible version
+python3 fix_numpy_compatibility.py
+```
+
+Or manually downgrade NumPy:
+
+```bash
+pip install numpy<2.0
+```
+
+The `setup_dependencies.py` script will detect this issue and provide instructions for resolving it.
 
 ## Usage
 
