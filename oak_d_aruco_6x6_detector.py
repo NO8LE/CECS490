@@ -75,17 +75,45 @@ try:
     # Try to access a dictionary to verify ArUco is working
     ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
     aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
-    print("ArUco module successfully loaded and verified")
+    print("ArUco module successfully loaded and verified (using Dictionary_get)")
+    # Store the method to use later
+    dictionary_method = "old"
 except Exception as e:
     # If Dictionary_get fails, try the newer API
     try:
         ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
         aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
-        print("ArUco module successfully loaded and verified (using newer API)")
+        print("ArUco module successfully loaded and verified (using Dictionary.get)")
+        # Store the method to use later
+        dictionary_method = "new"
     except Exception as e2:
-        print(f"Error verifying ArUco module: {str(e2)}")
-        print("ArUco module found but not working correctly")
-        sys.exit(1)
+        # If both methods fail, try to create a dictionary directly
+        try:
+            # Try to create a dictionary directly (OpenCV 4.x approach)
+            ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+            aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
+            print("ArUco module successfully loaded and verified (using Dictionary.create)")
+            # Store the method to use later
+            dictionary_method = "create"
+        except Exception as e3:
+            # Last resort: try to create a dictionary with parameters
+            try:
+                # Try to create a dictionary with parameters (another approach)
+                ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+                aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+                print("ArUco module successfully loaded and verified (using Dictionary constructor)")
+                # Store the method to use later
+                dictionary_method = "constructor"
+            except Exception as e4:
+                print(f"Error verifying ArUco module: {str(e4)}")
+                print("ArUco module found but not working correctly")
+                print("\nDetailed error information:")
+                print(f"Dictionary_get error: {str(e)}")
+                print(f"Dictionary.get error: {str(e2)}")
+                print(f"Dictionary.create error: {str(e3)}")
+                print(f"Dictionary constructor error: {str(e4)}")
+                print("\nPlease check your OpenCV installation and version.")
+                sys.exit(1)
 
 # ArUco marker side length in meters
 MARKER_SIZE = 0.05  # 5 cm
@@ -96,9 +124,41 @@ os.makedirs(CALIB_DIR, exist_ok=True)
 
 class OakDArUcoDetector:
     def __init__(self):
-        # Initialize ArUco detector
-        self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
-        self.aruco_params = cv2.aruco.DetectorParameters.create()
+        # Initialize ArUco detector using the method that worked during initialization
+        if dictionary_method == "old":
+            self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
+        elif dictionary_method == "new":
+            self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
+        elif dictionary_method == "create":
+            self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
+        elif dictionary_method == "constructor":
+            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+        else:
+            # Fallback to trying all methods
+            try:
+                self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
+            except:
+                try:
+                    self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
+                except:
+                    try:
+                        self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
+                    except:
+                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+        
+        # Initialize detector parameters
+        try:
+            self.aruco_params = cv2.aruco.DetectorParameters.create()
+        except:
+            try:
+                self.aruco_params = cv2.aruco.DetectorParameters_create()
+            except:
+                try:
+                    self.aruco_params = cv2.aruco.DetectorParameters()
+                except Exception as e:
+                    print(f"Error creating detector parameters: {str(e)}")
+                    print("Using default parameters")
+                    self.aruco_params = None
         
         # Camera calibration matrices
         self.camera_matrix = None

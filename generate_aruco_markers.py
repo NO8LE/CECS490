@@ -68,16 +68,42 @@ except Exception as e:
 try:
     # Try to access a dictionary to verify ArUco is working
     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-    print("ArUco module successfully loaded and verified")
+    print("ArUco module successfully loaded and verified (using Dictionary_get)")
+    # Store the method to use later
+    dictionary_method = "old"
 except Exception as e:
     # If Dictionary_get fails, try the newer API
     try:
         aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
-        print("ArUco module successfully loaded and verified (using newer API)")
+        print("ArUco module successfully loaded and verified (using Dictionary.get)")
+        # Store the method to use later
+        dictionary_method = "new"
     except Exception as e2:
-        print(f"Error verifying ArUco module: {str(e2)}")
-        print("ArUco module found but not working correctly")
-        sys.exit(1)
+        # If both methods fail, try to create a dictionary directly
+        try:
+            # Try to create a dictionary directly (OpenCV 4.x approach)
+            aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
+            print("ArUco module successfully loaded and verified (using Dictionary.create)")
+            # Store the method to use later
+            dictionary_method = "create"
+        except Exception as e3:
+            # Last resort: try to create a dictionary with parameters
+            try:
+                # Try to create a dictionary with parameters (another approach)
+                aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250)
+                print("ArUco module successfully loaded and verified (using Dictionary constructor)")
+                # Store the method to use later
+                dictionary_method = "constructor"
+            except Exception as e4:
+                print(f"Error verifying ArUco module: {str(e4)}")
+                print("ArUco module found but not working correctly")
+                print("\nDetailed error information:")
+                print(f"Dictionary_get error: {str(e)}")
+                print(f"Dictionary.get error: {str(e2)}")
+                print(f"Dictionary.create error: {str(e3)}")
+                print(f"Dictionary constructor error: {str(e4)}")
+                print("\nPlease check your OpenCV installation and version.")
+                sys.exit(1)
 
 # Create output directory if it doesn't exist
 OUTPUT_DIR = "aruco_markers"
@@ -95,8 +121,27 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
     Returns:
         The marker image
     """
-    # Get the ArUco dictionary
-    aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
+    # Get the ArUco dictionary using the method that worked during initialization
+    if dictionary_method == "old":
+        aruco_dict = cv2.aruco.Dictionary_get(dictionary_id)
+    elif dictionary_method == "new":
+        aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
+    elif dictionary_method == "create":
+        aruco_dict = cv2.aruco.Dictionary.create(dictionary_id)
+    elif dictionary_method == "constructor":
+        aruco_dict = cv2.aruco.Dictionary(dictionary_id)
+    else:
+        # Fallback to trying all methods
+        try:
+            aruco_dict = cv2.aruco.Dictionary_get(dictionary_id)
+        except:
+            try:
+                aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
+            except:
+                try:
+                    aruco_dict = cv2.aruco.Dictionary.create(dictionary_id)
+                except:
+                    aruco_dict = cv2.aruco.Dictionary(dictionary_id)
     
     # Generate the marker
     marker_image = np.zeros((size, size), dtype=np.uint8)
