@@ -40,7 +40,7 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
         The marker image
     """
     # Get the ArUco dictionary
-    aruco_dict = cv2.aruco.Dictionary_get(dictionary_id)
+    aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
     
     # Generate the marker
     marker_image = np.zeros((size, size), dtype=np.uint8)

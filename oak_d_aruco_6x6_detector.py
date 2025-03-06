@@ -32,8 +32,8 @@ os.makedirs(CALIB_DIR, exist_ok=True)
 class OakDArUcoDetector:
     def __init__(self):
         # Initialize ArUco detector
-        self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
-        self.aruco_params = cv2.aruco.DetectorParameters_create()
+        self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
+        self.aruco_params = cv2.aruco.DetectorParameters.create()
         
         # Camera calibration matrices
         self.camera_matrix = None

@@ -29,6 +29,7 @@ import depthai as dai
 import numpy as np
 import os
 import time
+import sys
 
 # Create calibration directory if it doesn't exist
 CALIB_DIR = "camera_calibration"

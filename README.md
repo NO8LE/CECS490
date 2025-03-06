@@ -27,7 +27,19 @@ This Python script uses the Luxonis OAK-D camera to detect 6x6 ArUco markers, ca
 
 ## Installation
 
-1. Install the required Python packages:
+1. Run the setup dependencies script to check and install required packages:
+
+```bash
+# Check and install dependencies
+python3 setup_dependencies.py
+```
+
+This script will:
+- Check if all required packages are installed
+- Install missing packages
+- Verify OpenCV ArUco module compatibility
+
+2. Alternatively, install the required Python packages manually:
 
 ```bash
 # Install dependencies individually
@@ -37,9 +49,19 @@ pip install opencv-python numpy scipy depthai
 pip install -r requirements.txt
 ```
 
-2. Connect your OAK-D camera to your computer.
+3. Connect your OAK-D camera to your computer.
 
-3. Clone this repository or download the scripts.
+4. Clone this repository or download the scripts.
+
+## OpenCV Compatibility Note
+
+The scripts have been updated to work with newer versions of OpenCV (4.5.0+) that use a different ArUco API. If you encounter errors like:
+
+```
+AttributeError: module 'cv2.aruco' has no attribute 'Dictionary_get'
+```
+
+Run the `setup_dependencies.py` script to check your OpenCV installation and get recommendations for fixing compatibility issues.
 
 ## Usage
 
