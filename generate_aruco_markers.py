@@ -18,10 +18,30 @@ Example:
   This will generate markers with IDs 0 through 5, each 500x500 pixels.
 """
 
-import cv2
 import os
 import sys
 import numpy as np
+
+try:
+    import cv2
+    # Check if aruco module is available
+    if not hasattr(cv2, 'aruco'):
+        # Try to import aruco from opencv-contrib-python
+        try:
+            # This is a workaround for some OpenCV installations
+            from cv2 import aruco
+            # Make aruco available as cv2.aruco
+            cv2.aruco = aruco
+        except ImportError:
+            print("Error: OpenCV ArUco module not found.")
+            print("Please install opencv-contrib-python:")
+            print("  pip install opencv-contrib-python")
+            sys.exit(1)
+except ImportError:
+    print("Error: OpenCV (cv2) not found.")
+    print("Please install OpenCV:")
+    print("  pip install opencv-python opencv-contrib-python")
+    sys.exit(1)
 
 # Create output directory if it doesn't exist
 OUTPUT_DIR = "aruco_markers"

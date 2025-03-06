@@ -12,12 +12,40 @@ Usage:
 Press 'q' to exit the program.
 """
 
-import cv2
-import depthai as dai
-import numpy as np
 import os
+import sys
+import numpy as np
 import time
 from scipy.spatial.transform import Rotation as R
+
+try:
+    import cv2
+    # Check if aruco module is available
+    if not hasattr(cv2, 'aruco'):
+        # Try to import aruco from opencv-contrib-python
+        try:
+            # This is a workaround for some OpenCV installations
+            from cv2 import aruco
+            # Make aruco available as cv2.aruco
+            cv2.aruco = aruco
+        except ImportError:
+            print("Error: OpenCV ArUco module not found.")
+            print("Please install opencv-contrib-python:")
+            print("  pip install opencv-contrib-python")
+            sys.exit(1)
+except ImportError:
+    print("Error: OpenCV (cv2) not found.")
+    print("Please install OpenCV:")
+    print("  pip install opencv-python opencv-contrib-python")
+    sys.exit(1)
+
+try:
+    import depthai as dai
+except ImportError:
+    print("Error: DepthAI module not found.")
+    print("Please install DepthAI:")
+    print("  pip install depthai")
+    sys.exit(1)
 
 # ArUco dictionary to use (6x6 with 250 markers)
 ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250

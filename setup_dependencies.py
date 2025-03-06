@@ -98,6 +98,18 @@ def check_aruco_module():
             print(f"Warning: {numpy_message}")
         
         import cv2
+        
+        # Check if aruco module is available
+        if not hasattr(cv2, 'aruco'):
+            # Try to import aruco from opencv-contrib-python
+            try:
+                # This is a workaround for some OpenCV installations
+                from cv2 import aruco
+                # Make aruco available as cv2.aruco
+                cv2.aruco = aruco
+            except ImportError:
+                return False
+        
         # Try to access ArUco module
         aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
         return True

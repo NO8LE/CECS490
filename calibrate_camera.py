@@ -24,12 +24,26 @@ Example:
   This will calibrate using a chessboard with 7x5 inner corners.
 """
 
-import cv2
-import depthai as dai
-import numpy as np
 import os
-import time
 import sys
+import numpy as np
+import time
+
+try:
+    import cv2
+except ImportError:
+    print("Error: OpenCV (cv2) not found.")
+    print("Please install OpenCV:")
+    print("  pip install opencv-python opencv-contrib-python")
+    sys.exit(1)
+
+try:
+    import depthai as dai
+except ImportError:
+    print("Error: DepthAI module not found.")
+    print("Please install DepthAI:")
+    print("  pip install depthai")
+    sys.exit(1)
 
 # Create calibration directory if it doesn't exist
 CALIB_DIR = "camera_calibration"
