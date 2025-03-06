@@ -94,6 +94,38 @@ pip install numpy<2.0
 
 The `setup_dependencies.py` script will detect this issue and provide instructions for resolving it.
 
+### Missing ArUco Module
+
+If you encounter errors about the ArUco module not being found despite having opencv-contrib-python installed:
+
+```
+Error: OpenCV ArUco module not found.
+Please install opencv-contrib-python:
+  pip install opencv-contrib-python
+```
+
+The scripts now include robust ArUco module import handling that tries multiple approaches:
+1. Direct access via `cv2.aruco`
+2. Importing from `cv2` with `from cv2 import aruco`
+3. Jetson-specific import paths
+
+### Jetson Platform Considerations
+
+When running on NVIDIA Jetson platforms:
+
+1. OpenCV is typically pre-installed system-wide with CUDA support
+2. Use system packages when possible:
+   ```bash
+   sudo apt-get install python3-opencv python3-numpy
+   ```
+
+3. If using virtual environments, create them with access to system packages:
+   ```bash
+   python3 -m venv --system-site-packages my_env
+   ```
+
+4. The scripts include Jetson-specific import paths and compatibility checks
+
 ## Usage
 
 1. Run the script:

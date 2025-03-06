@@ -98,22 +98,47 @@ def check_aruco_module():
             print(f"Warning: {numpy_message}")
         
         import cv2
+        print(f"OpenCV version: {cv2.__version__}")
         
         # Check if aruco module is available
-        if not hasattr(cv2, 'aruco'):
-            # Try to import aruco from opencv-contrib-python
+        if hasattr(cv2, 'aruco'):
+            print("ArUco module found in cv2.aruco")
+            aruco = cv2.aruco
+        else:
+            # Try to import as a separate module (older OpenCV versions)
             try:
-                # This is a workaround for some OpenCV installations
                 from cv2 import aruco
-                # Make aruco available as cv2.aruco
+                print("ArUco module imported from cv2.aruco")
+                # Make it available as cv2.aruco for consistency
                 cv2.aruco = aruco
             except ImportError:
-                return False
+                # For Jetson with custom OpenCV builds
+                try:
+                    sys.path.append('/usr/lib/python3/dist-packages/cv2/python-3.10')
+                    from cv2 import aruco
+                    print("ArUco module imported from Jetson-specific path")
+                    cv2.aruco = aruco
+                except (ImportError, FileNotFoundError):
+                    print("ArUco module not found in any location")
+                    return False
         
-        # Try to access ArUco module
-        aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
-        return True
-    except (ImportError, AttributeError) as e:
+        # Try to access ArUco module with both old and new API
+        try:
+            # Try old API first
+            aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+            print("ArUco module verified using old API (Dictionary_get)")
+            return True
+        except Exception as e:
+            # If old API fails, try new API
+            try:
+                aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
+                print("ArUco module verified using new API (Dictionary.get)")
+                return True
+            except Exception as e2:
+                print(f"ArUco module found but not working: {str(e2)}")
+                return False
+    except Exception as e:
+        print(f"Error checking ArUco module: {str(e)}")
         return False
 
 def main():

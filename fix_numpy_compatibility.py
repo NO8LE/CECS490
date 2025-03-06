@@ -18,9 +18,34 @@ The script will:
 import sys
 import subprocess
 import importlib.util
+import platform
 
 # Target NumPy version (latest 1.x version)
 TARGET_NUMPY_VERSION = "1.26.4"
+
+# Check if running on Jetson platform
+def is_jetson_platform():
+    """
+    Check if running on a Jetson platform
+    
+    Returns:
+        True if running on a Jetson platform, False otherwise
+    """
+    try:
+        # Check for Jetson-specific files
+        import os
+        if os.path.exists('/etc/nv_tegra_release'):
+            return True
+        
+        # Check CPU info for Jetson-specific info
+        with open('/proc/cpuinfo', 'r') as f:
+            cpuinfo = f.read()
+            if 'tegra' in cpuinfo.lower():
+                return True
+        
+        return False
+    except:
+        return False
 
 def check_numpy_version():
     """
@@ -59,11 +84,28 @@ def main():
     """
     print("Checking NumPy compatibility for OpenCV...")
     
+    # Check if running on Jetson platform
+    jetson_platform = is_jetson_platform()
+    if jetson_platform:
+        print("Detected Jetson platform")
+        print("Note: On Jetson platforms, OpenCV is typically installed system-wide")
+        print("and may have specific NumPy version requirements.")
+        print("\nRecommended approach for Jetson:")
+        print("1. Use the system Python and OpenCV installation")
+        print("2. Install compatible NumPy with: sudo apt-get install python3-numpy")
+        print("3. If needed, create a virtual environment with access to system packages:")
+        print("   python3 -m venv --system-site-packages my_env\n")
+    
     # Check current NumPy version
     current_version, is_compatible = check_numpy_version()
     
     if current_version is None:
         print("NumPy is not installed.")
+        if jetson_platform:
+            print("For Jetson platforms, install NumPy with:")
+            print("  sudo apt-get install python3-numpy")
+            return
+        
         print(f"Installing NumPy {TARGET_NUMPY_VERSION}...")
         if install_numpy_version(TARGET_NUMPY_VERSION):
             print(f"✓ NumPy {TARGET_NUMPY_VERSION} installed successfully")
@@ -82,6 +124,15 @@ def main():
     
     # Downgrade NumPy
     print(f"NumPy {current_version} is not compatible with OpenCV.")
+    
+    if jetson_platform:
+        print("For Jetson platforms, it's recommended to use the system packages:")
+        print("  sudo apt-get remove python3-numpy")
+        print("  sudo apt-get install python3-numpy")
+        print("\nAlternatively, you can try installing a specific version:")
+        print(f"  pip install numpy=={TARGET_NUMPY_VERSION}")
+        return
+    
     print(f"Downgrading to NumPy {TARGET_NUMPY_VERSION}...")
     
     if install_numpy_version(TARGET_NUMPY_VERSION):

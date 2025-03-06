@@ -29,20 +29,26 @@ import sys
 import numpy as np
 import time
 
+# Import OpenCV
 try:
     import cv2
+    print(f"OpenCV version: {cv2.__version__}")
 except ImportError:
     print("Error: OpenCV (cv2) not found.")
     print("Please install OpenCV:")
     print("  pip install opencv-python opencv-contrib-python")
     sys.exit(1)
 
+# Import DepthAI
 try:
     import depthai as dai
+    print(f"DepthAI version: {dai.__version__}")
 except ImportError:
     print("Error: DepthAI module not found.")
     print("Please install DepthAI:")
     print("  pip install depthai")
+    print("\nFor Jetson platforms, you might need to install it differently:")
+    print("  sudo apt-get install python3-depthai")
     sys.exit(1)
 
 # Create calibration directory if it doesn't exist

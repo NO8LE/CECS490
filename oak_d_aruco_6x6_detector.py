@@ -18,37 +18,74 @@ import numpy as np
 import time
 from scipy.spatial.transform import Rotation as R
 
+# Import OpenCV
 try:
     import cv2
-    # Check if aruco module is available
-    if not hasattr(cv2, 'aruco'):
-        # Try to import aruco from opencv-contrib-python
-        try:
-            # This is a workaround for some OpenCV installations
-            from cv2 import aruco
-            # Make aruco available as cv2.aruco
-            cv2.aruco = aruco
-        except ImportError:
-            print("Error: OpenCV ArUco module not found.")
-            print("Please install opencv-contrib-python:")
-            print("  pip install opencv-contrib-python")
-            sys.exit(1)
+    print(f"OpenCV version: {cv2.__version__}")
 except ImportError:
     print("Error: OpenCV (cv2) not found.")
     print("Please install OpenCV:")
     print("  pip install opencv-python opencv-contrib-python")
     sys.exit(1)
 
+# Import ArUco module - try different approaches for different OpenCV installations
+try:
+    # First try direct import from cv2
+    if hasattr(cv2, 'aruco'):
+        print("Using cv2.aruco")
+        aruco = cv2.aruco
+    else:
+        # Try to import as a separate module (older OpenCV versions)
+        try:
+            from cv2 import aruco
+            print("Using from cv2 import aruco")
+            # Make it available as cv2.aruco for consistency
+            cv2.aruco = aruco
+        except ImportError:
+            # For Jetson with custom OpenCV builds
+            try:
+                sys.path.append('/usr/lib/python3/dist-packages/cv2/python-3.10')
+                from cv2 import aruco
+                print("Using Jetson-specific aruco import")
+                cv2.aruco = aruco
+            except (ImportError, FileNotFoundError):
+                print("Error: OpenCV ArUco module not found.")
+                print("Please ensure opencv-contrib-python is installed:")
+                print("  pip install opencv-contrib-python")
+                print("\nFor Jetson platforms, you might need to install it differently:")
+                print("  sudo apt-get install python3-opencv")
+                sys.exit(1)
+except Exception as e:
+    print(f"Error importing ArUco module: {str(e)}")
+    print("Please ensure opencv-contrib-python is installed correctly")
+    sys.exit(1)
+
+# Import DepthAI
 try:
     import depthai as dai
+    print(f"DepthAI version: {dai.__version__}")
 except ImportError:
     print("Error: DepthAI module not found.")
     print("Please install DepthAI:")
     print("  pip install depthai")
     sys.exit(1)
 
-# ArUco dictionary to use (6x6 with 250 markers)
-ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+# Verify ArUco module is working
+try:
+    # Try to access a dictionary to verify ArUco is working
+    ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+    aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
+    print("ArUco module successfully loaded and verified")
+except Exception as e:
+    # If Dictionary_get fails, try the newer API
+    try:
+        ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+        aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
+        print("ArUco module successfully loaded and verified (using newer API)")
+    except Exception as e2:
+        print(f"Error verifying ArUco module: {str(e2)}")
+        print("ArUco module found but not working correctly")
+        sys.exit(1)
 
 # ArUco marker side length in meters
 MARKER_SIZE = 0.05  # 5 cm
