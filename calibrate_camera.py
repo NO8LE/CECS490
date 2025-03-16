@@ -12,8 +12,8 @@ Usage:
   python3 calibrate_camera.py [--chessboard width height]
 
   --charuco: Use a CharucoBoard for calibration (recommended)
-    squares_x: Number of squares in X direction (default: 7)
-    squares_y: Number of squares in Y direction (default: 5)
+    squares_x: Number of squares in X direction (width) (default: 7)
+    squares_y: Number of squares in Y direction (height) (default: 5)
     square_length: Physical size of each square in meters (default: 0.025)
 
   --drone: Optimize calibration for drone-based detection at various distances
@@ -34,12 +34,13 @@ Instructions:
   6. Press 'q' to exit and calculate the calibration
 
 Examples:
-  python3 calibrate_camera.py --charuco 5 7 0.12 --drone
-  This will calibrate using a CharucoBoard with 5x7 squares, each 12cm in size,
-  optimized for drone-based detection at various distances.
+  python3 calibrate_camera.py --charuco 7 5 0.05 --drone
+  This will calibrate using a CharucoBoard with 7x5 squares (width x height), 
+  each 5cm in size, optimized for drone-based detection at various distances.
 
-  python3 calibrate_camera.py --charuco 7 5 0.025
-  This will calibrate using a standard CharucoBoard with 7x5 squares, each 2.5cm in size.
+  python3 calibrate_camera.py --charuco 6 8 0.025
+  This will calibrate using a standard CharucoBoard with 6x8 squares (width x height), 
+  each 2.5cm in size, designed to fit on a standard 8.5x11 inch paper.
 
   python3 calibrate_camera.py --chessboard 9 6
   This will calibrate using a traditional chessboard with 9x6 inner corners.
