@@ -12,9 +12,9 @@ Usage:
   python3 calibrate_camera.py [--chessboard width height]
 
   --charuco: Use a CharucoBoard for calibration (recommended)
-    squares_x: Number of squares in X direction (width) (default: 7)
-    squares_y: Number of squares in Y direction (height) (default: 5)
-    square_length: Physical size of each square in meters (default: 0.025)
+    squares_x: Number of squares in X direction (width) (default: 8)
+    squares_y: Number of squares in Y direction (height) (default: 6)
+    square_length: Physical size of each square in meters (default: 0.325)
 
   --drone: Optimize calibration for drone-based detection at various distances
     This increases the number of required calibration frames and enables
@@ -34,9 +34,9 @@ Instructions:
   6. Press 'q' to exit and calculate the calibration
 
 Examples:
-  python3 calibrate_camera.py --charuco 7 5 0.05 --drone
-  This will calibrate using a CharucoBoard with 7x5 squares (width x height), 
-  each 5cm in size, optimized for drone-based detection at various distances.
+  python3 calibrate_camera.py --charuco 8 6 0.325 --drone
+  This will calibrate using a CharucoBoard with 8x6 squares (width x height), 
+  each 32.5cm in size, optimized for drone-based detection at various distances.
 
   python3 calibrate_camera.py --charuco 6 8 0.025
   This will calibrate using a standard CharucoBoard with 6x8 squares (width x height), 
@@ -188,7 +188,7 @@ def get_aruco_dictionary(dictionary_id=cv2.aruco.DICT_6X6_250):
                 except:
                     return cv2.aruco.Dictionary(dictionary_id)
 
-def create_charuco_board(squares_x=7, squares_y=5, square_length=0.025, marker_length=0.019, dictionary_id=cv2.aruco.DICT_6X6_250):
+def create_charuco_board(squares_x=8, squares_y=6, square_length=0.325, marker_length=0.244, dictionary_id=cv2.aruco.DICT_6X6_250):
     """
     Create a CharucoBoard object
     
@@ -257,10 +257,10 @@ class CameraCalibrator:
         if calibration_type == "charuco":
             if charuco_params is None:
                 # Default CharucoBoard parameters
-                self.squares_x = 7
-                self.squares_y = 5
-                self.square_length = 0.025  # 2.5 cm
-                self.marker_length = 0.019  # 1.9 cm (slightly smaller than square)
+                self.squares_x = 8
+                self.squares_y = 6
+                self.square_length = 0.325  # 32.5 cm
+                self.marker_length = 0.244  # 24.4 cm (75% of square size)
             else:
                 self.squares_x = charuco_params[0]
                 self.squares_y = charuco_params[1]
@@ -844,7 +844,7 @@ def main():
         )
     else:
         # Default to CharucoBoard calibration
-        print("No calibration type specified, defaulting to CharucoBoard (7x5, 25mm squares)...")
+        print("No calibration type specified, defaulting to CharucoBoard (8x6, 32.5cm squares)...")
         calibrator = CameraCalibrator(
             calibration_type="charuco",
             drone_mode=args.drone
