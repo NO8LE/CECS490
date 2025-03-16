@@ -1,20 +1,20 @@
-This repository is a submodule of the 
-CECS490-Final-Project  Organization:
+# OAK-D ArUco 6x6 Marker Detector for Drone Applications
+
+This Python project uses the Luxonis OAK-D camera to detect 6x6 ArUco markers, calculate their 3D position, and visualize the results. It has been optimized for drone-based detection at ranges from 0.5m to 12m with 12-inch (0.3048m) markers.
+
+This repository is a submodule of the CECS490-Final-Project Organization:
 https://github.com/CECS490-Final-Project
 
+## Key Features
 
-# OAK-D ArUco 6x6 Marker Detector
-
-This Python script uses the Luxonis OAK-D camera to detect 6x6 ArUco markers, calculate their 3D position, and visualize the results.
-
-## Features
-
-- Detects 6x6 ArUco markers using the OpenCV ArUco library
-- Calculates the 3D position and orientation of detected markers
-- Uses the OAK-D stereo depth capabilities for accurate spatial location
-- Displays RGB and depth visualization with marker information
-- Automatically tracks markers and updates the spatial calculation ROI
-- Handles camera calibration for accurate pose estimation
+- **Long-range detection**: Optimized for detecting markers at distances up to 12m
+- **Adaptive processing**: Automatically adjusts parameters based on estimated distance
+- **Jetson Orin Nano optimization**: Leverages hardware acceleration for real-time performance
+- **CharucoBoard calibration**: More robust and accurate camera calibration
+- **Multi-scale detection**: Improves marker detection at varying distances
+- **Performance monitoring**: Adapts processing based on system capabilities
+- **Target prioritization**: Ability to track and prioritize a specific marker among many
+- **Visual targeting guidance**: Provides directional guidance to center on a target marker
 
 ## Requirements
 
@@ -57,6 +57,100 @@ pip install numpy==1.26.4 opencv-contrib-python==4.5.5.62 depthai==2.24.0.0 scip
 3. Connect your OAK-D camera to your computer.
 
 4. Clone this repository or download the scripts.
+
+## Setup Instructions
+
+### 1. Generate a CharucoBoard for Calibration
+
+```bash
+python3 generate_charuco_board_for_drone.py 5 7 4000 --high-contrast
+```
+
+This will create a high-contrast CharucoBoard with 5x7 squares in a 4000x4000 pixel image, saved to the `calibration_patterns` directory.
+
+### 2. Print and Measure the CharucoBoard
+
+1. Print the generated CharucoBoard at the largest size possible
+2. Measure the actual size of the squares on your printed board in meters
+3. Mount the board on a flat surface for calibration
+
+### 3. Calibrate the Camera
+
+```bash
+python3 calibrate_camera.py --charuco 5 7 0.12 --drone
+```
+
+Replace `0.12` with the actual measured square size in meters. Move the board around to capture different angles and positions during calibration. For drone applications, be sure to capture frames at various distances (0.5m to 12m).
+
+Alternatively, you can use a traditional chessboard pattern:
+
+```bash
+# Calibrate using the default 9x6 chessboard pattern
+python3 calibrate_camera.py --chessboard 9 6
+```
+
+The calibration file is stored in the `camera_calibration` directory as `calibration.npz` and will be automatically used by the ArUco marker detector script.
+
+### 4. Generate ArUco Markers
+
+The script is configured to detect 6x6 ArUco markers from the DICT_6X6_250 dictionary. You can generate these markers using the included generator script:
+
+```bash
+# Generate markers with IDs 0-9 (default)
+python3 generate_aruco_markers.py
+
+# Generate markers with IDs 0-5, each 500x500 pixels
+python3 generate_aruco_markers.py 0 5 500
+```
+
+The generated markers will be saved in the `aruco_markers` directory. Print these markers and measure their physical size accurately.
+
+For drone applications, the default marker size is set to 12 inches (0.3048 meters). If your markers are a different size, update the `MARKER_SIZE` constant in the script.
+
+### 5. Run the Detector
+
+```bash
+python3 oak_d_aruco_6x6_detector.py --resolution adaptive --cuda --performance
+```
+
+Options:
+- `--target, -t MARKER_ID`: Specify a target marker ID to highlight and track
+- `--resolution, -r RESOLUTION`: Specify resolution (low, medium, high, adaptive)
+- `--cuda, -c`: Enable CUDA acceleration if available
+- `--performance, -p`: Enable high performance mode on Jetson
+
+For targeting a specific marker:
+```bash
+python3 oak_d_aruco_6x6_detector.py --target 5
+```
+This will prioritize marker ID 5, providing visual guidance to center on it.
+
+## Performance Optimization
+
+### Resolution Profiles
+
+- **Low** (640x400): For close markers (0.5-3m)
+- **Medium** (1280x720): For mid-range markers (3-8m)
+- **High** (1920x1080): For distant markers (8-12m)
+
+The detector automatically selects the appropriate resolution based on the estimated distance when using the `adaptive` resolution mode.
+
+### Detection Profiles
+
+The detector automatically adjusts detection parameters based on the estimated distance:
+
+- **Close** (0.5-3m): Optimized for nearby markers
+- **Medium** (3-8m): Balanced parameters
+- **Far** (8-12m): Optimized for distant markers
+
+### Jetson Orin Nano Optimization
+
+When using the `--performance` flag, the detector will:
+
+1. Set the Jetson to maximum performance mode during detection
+2. Utilize hardware acceleration where available
+3. Automatically adjust processing based on system load
+4. Reset to power-saving mode when exiting
 
 ## Compatibility Notes
 
@@ -124,93 +218,64 @@ When running on NVIDIA Jetson platforms:
 
 4. The scripts include Jetson-specific import paths and compatibility checks
 
-## Usage
-
-1. Run the script:
-
-```bash
-# Basic usage without targeting any specific marker
-python3 oak_d_aruco_6x6_detector.py
-
-# Target and highlight a specific marker (e.g., marker with ID 5)
-python3 oak_d_aruco_6x6_detector.py --target 5
-
-# Short form of the target argument
-python3 oak_d_aruco_6x6_detector.py -t 10
-```
-
-Or use the executable directly:
-
-```bash
-./oak_d_aruco_6x6_detector.py
-./oak_d_aruco_6x6_detector.py --target 5
-```
-
-2. The script will open two windows:
-   - RGB: Shows the color camera feed with detected markers, their IDs, orientation, and 3D position
-   - Depth: Shows the depth map from the stereo cameras
-
-3. When a target marker is specified and detected:
-   - It will be highlighted with a red border (instead of yellow)
-   - It will be labeled as "TARGET" above the marker
-   - Its spatial coordinates will be displayed in cyan text (instead of white)
-   - This makes it easy to track specific markers among multiple detected markers
-
-4. Press 'q' to exit the program.
-
-## Camera Calibration
-
-For better accuracy, you should calibrate your camera using the included calibration script:
-
-```bash
-# Calibrate using the default 9x6 chessboard pattern
-./calibrate_camera.py
-
-# Calibrate using a 7x5 chessboard pattern
-./calibrate_camera.py 7 5
-```
-
-You'll need to print a chessboard pattern (you can find many online) and hold it in front of the camera at different angles and positions. The script will capture frames when the chessboard is detected and use them to calculate the camera calibration parameters.
-
-The calibration file is stored in the `camera_calibration` directory as `calibration.npz` and will be automatically used by the ArUco marker detector script.
-
-If you don't calibrate your camera, the detector will use default calibration values, which may not be accurate for your specific camera.
-
-## ArUco Markers
-
-The script is configured to detect 6x6 ArUco markers from the DICT_6X6_250 dictionary. You can generate these markers using the included generator script:
-
-```bash
-# Generate markers with IDs 0-9 (default)
-./generate_aruco_markers.py
-
-# Generate markers with IDs 0-5, each 500x500 pixels
-./generate_aruco_markers.py 0 5 500
-```
-
-The generated markers will be saved in the `aruco_markers` directory. Print these markers and measure their physical size accurately.
-
-You can also generate markers using online tools like:
-- [ArUco Marker Generator](https://chev.me/arucogen/)
-
-Make sure to select the 6x6 dictionary with 250 markers.
-
-The default marker size is set to 5 cm (0.05 meters). If your markers are a different size, update the `MARKER_SIZE` constant in the script.
-
-## Customization
-
-You can modify the following parameters in the script:
-
-- `ARUCO_DICT_TYPE`: Change the ArUco dictionary type
-- `MARKER_SIZE`: Set the physical size of your markers in meters
-- Camera resolution and FPS in the `initialize_pipeline` method
-- Depth thresholds and ROI size in various methods
-
 ## Troubleshooting
 
-- If the script can't find your OAK-D camera, make sure it's properly connected and recognized by your system.
-- If markers are detected but the pose estimation is inaccurate, try calibrating your camera.
-- If the depth information is noisy, try adjusting the depth thresholds in the script.
+### Marker Not Detected at Long Range
+
+1. Ensure the marker is well-lit and not obscured
+2. Try using the `--resolution high` option
+3. Increase the physical size of the marker if possible
+4. Ensure the camera is properly calibrated using the CharucoBoard
+
+### Poor Performance
+
+1. Use the `--cuda` flag if your system supports CUDA
+2. Try a lower resolution with `--resolution low` or `--resolution medium`
+3. Ensure the Jetson is not overheating (check thermal throttling)
+
+### Calibration Issues
+
+1. Make sure the CharucoBoard is printed at a large size
+2. Ensure good lighting conditions during calibration
+3. Capture frames at various distances for drone applications
+4. Measure the square size accurately
+
+## Technical Details
+
+### Marker Size
+
+The system is optimized for 12-inch (0.3048m) markers. If using different sized markers, update the `MARKER_SIZE` constant in `oak_d_aruco_6x6_detector.py`.
+
+### Camera Calibration
+
+The CharucoBoard calibration provides more robust and accurate results than traditional chessboard calibration, especially for varying distances. The calibration data is saved to `camera_calibration/calibration.npz` and is automatically loaded by the detector.
+
+### Multi-scale Detection
+
+The detector uses a multi-scale approach to improve marker detection:
+1. First attempts detection on the full image
+2. If no markers are found, tries with enhanced parameters
+3. If still no markers, tries with a scaled version of the image
+
+This approach significantly improves detection reliability at varying distances.
+
+### Target Tracking and Prioritization
+
+When multiple markers are in the field of view, the system can prioritize a specific marker:
+
+1. **Target Selection**: Use the `--target` flag to specify a marker ID to track
+2. **Visual Highlighting**: The target marker is highlighted with:
+   - Red bounding box (vs. yellow for other markers)
+   - "TARGET" label
+   - Crosshair overlay
+   - Larger corner points
+3. **Spatial Prioritization**: The spatial calculator focuses on the target marker
+4. **Targeting Guidance**: Visual indicators show how to center the drone on the target:
+   - Direction arrow pointing to the target
+   - Text instructions (UP, DOWN, LEFT, RIGHT)
+   - "TARGET CENTERED" confirmation when aligned
+
+This functionality is particularly useful for drone navigation and autonomous targeting applications.
 
 ## License
 

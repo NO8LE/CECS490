@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 
 """
-OAK-D ArUco 6x6 Marker Detector
+OAK-D ArUco 6x6 Marker Detector for Drone Applications
 
 This script uses the Luxonis OAK-D camera to detect 6x6 ArUco markers,
-calculate their 3D position, and visualize the results.
+calculate their 3D position, and visualize the results. It is optimized for
+drone-based detection at ranges from 0.5m to 12m on the Jetson Orin Nano.
 
 Usage:
-  python3 oak_d_aruco_6x6_detector.py [--target MARKER_ID]
+  python3 oak_d_aruco_6x6_detector.py [--target MARKER_ID] [--resolution RESOLUTION]
 
 Options:
-  --target, -t MARKER_ID  Specify a target marker ID to highlight
+  --target, -t MARKER_ID       Specify a target marker ID to highlight
+  --resolution, -r RESOLUTION  Specify resolution (low, medium, high) (default: adaptive)
+  --cuda, -c                   Enable CUDA acceleration if available
+  --performance, -p            Enable high performance mode on Jetson
 
 Examples:
   python3 oak_d_aruco_6x6_detector.py
   python3 oak_d_aruco_6x6_detector.py --target 5
-  python3 oak_d_aruco_6x6_detector.py -t 10
+  python3 oak_d_aruco_6x6_detector.py -t 10 -r high -c -p
 
 Press 'q' to exit the program.
 """
@@ -24,7 +28,10 @@ import os
 import sys
 import numpy as np
 import time
+import argparse
 from scipy.spatial.transform import Rotation as R
+from collections import deque
+import threading
 
 # Import OpenCV
 try:
@@ -35,6 +42,18 @@ except ImportError:
     print("Please install OpenCV:")
     print("  pip install opencv-python opencv-contrib-python")
     sys.exit(1)
+
+# Check for CUDA support
+USE_CUDA = False
+try:
+    if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+        print(f"CUDA devices available: {cv2.cuda.getCudaEnabledDeviceCount()}")
+        USE_CUDA = True
+        print("CUDA acceleration enabled")
+    else:
+        print("No CUDA devices found, using CPU")
+except:
+    print("CUDA not available in OpenCV, using CPU")
 
 # Import ArUco module - try different approaches for different OpenCV installations
 try:
@@ -124,18 +143,120 @@ except Exception as e:
                 sys.exit(1)
 
 # ArUco marker side length in meters
-MARKER_SIZE = 0.05  # 5 cm
+MARKER_SIZE = 0.3048  # 12 inches (0.3048m)
+
+# Resolution profiles
+RESOLUTION_PROFILES = {
+    "low": (640, 400),      # For close markers (0.5-3m)
+    "medium": (1280, 720),  # For mid-range markers (3-8m)
+    "high": (1920, 1080)    # For distant markers (8-12m)
+}
+
+# Detection parameter profiles for different distances
+DETECTION_PROFILES = {
+    "close": {  # 0.5-3m
+        "adaptiveThreshConstant": 7,
+        "minMarkerPerimeterRate": 0.1,
+        "maxMarkerPerimeterRate": 4.0,
+        "polygonalApproxAccuracyRate": 0.05,
+        "cornerRefinementMethod": 1,  # CORNER_REFINE_SUBPIX
+        "cornerRefinementWinSize": 5,
+        "cornerRefinementMaxIterations": 30,
+        "cornerRefinementMinAccuracy": 0.1,
+        "perspectiveRemovePixelPerCell": 4,
+        "perspectiveRemoveIgnoredMarginPerCell": 0.13
+    },
+    "medium": {  # 3-8m
+        "adaptiveThreshConstant": 9,
+        "minMarkerPerimeterRate": 0.05,
+        "maxMarkerPerimeterRate": 4.0,
+        "polygonalApproxAccuracyRate": 0.08,
+        "cornerRefinementMethod": 1,  # CORNER_REFINE_SUBPIX
+        "cornerRefinementWinSize": 5,
+        "cornerRefinementMaxIterations": 30,
+        "cornerRefinementMinAccuracy": 0.1,
+        "perspectiveRemovePixelPerCell": 4,
+        "perspectiveRemoveIgnoredMarginPerCell": 0.13
+    },
+    "far": {  # 8-12m
+        "adaptiveThreshConstant": 11,
+        "minMarkerPerimeterRate": 0.03,
+        "maxMarkerPerimeterRate": 4.0,
+        "polygonalApproxAccuracyRate": 0.1,
+        "cornerRefinementMethod": 1,  # CORNER_REFINE_SUBPIX
+        "cornerRefinementWinSize": 5,
+        "cornerRefinementMaxIterations": 30,
+        "cornerRefinementMinAccuracy": 0.1,
+        "perspectiveRemovePixelPerCell": 4,
+        "perspectiveRemoveIgnoredMarginPerCell": 0.13
+    }
+}
 
 # Camera calibration directory - create if it doesn't exist
 CALIB_DIR = "camera_calibration"
 os.makedirs(CALIB_DIR, exist_ok=True)
 
+class MarkerTracker:
+    """
+    Class for tracking ArUco markers across frames
+    """
+    def __init__(self, corners, marker_id, timestamp):
+        self.marker_id = marker_id
+        self.corners = corners
+        self.last_seen = timestamp
+        self.positions = deque(maxlen=10)  # Store last 10 positions
+        self.positions.append((corners, timestamp))
+        self.velocity = np.zeros((4, 2))  # Velocity of each corner
+        
+    def update(self, corners, timestamp):
+        """Update tracker with new detection"""
+        dt = timestamp - self.last_seen
+        if dt > 0:
+            # Calculate velocity
+            velocity = (corners - self.corners) / dt
+            # Apply exponential smoothing to velocity
+            alpha = 0.7
+            self.velocity = alpha * velocity + (1 - alpha) * self.velocity
+            
+        self.corners = corners
+        self.last_seen = timestamp
+        self.positions.append((corners, timestamp))
+        
+    def predict(self, timestamp):
+        """Predict marker position at given timestamp"""
+        dt = timestamp - self.last_seen
+        if dt > 0.5:  # If not seen for more than 0.5 seconds, prediction may be unreliable
+            return None
+            
+        # Predict using velocity
+        predicted_corners = self.corners + self.velocity * dt
+        return predicted_corners
+        
+    def is_valid(self, timestamp):
+        """Check if tracker is still valid"""
+        return (timestamp - self.last_seen) < 1.0  # Valid for 1 second
+
 class OakDArUcoDetector:
-    def __init__(self, target_id=None):
+    def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False):
         # Target marker ID to highlight
         self.target_id = target_id
         if self.target_id is not None:
             print(f"Target marker ID: {self.target_id}")
+            
+        # Resolution setting
+        self.resolution_mode = resolution
+        print(f"Resolution mode: {self.resolution_mode}")
+        
+        # CUDA setting
+        self.use_cuda = use_cuda and USE_CUDA
+        if self.use_cuda:
+            print("Using CUDA acceleration")
+            
+        # Performance mode for Jetson
+        self.high_performance = high_performance
+        if self.high_performance:
+            self.set_power_mode(True)
+            
         # Initialize ArUco detector using the method that worked during initialization
         if dictionary_method == "old":
             self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
@@ -172,6 +293,10 @@ class OakDArUcoDetector:
                     print("Using default parameters")
                     self.aruco_params = None
         
+        # Set initial detection profile (will be updated based on distance)
+        self.current_profile = "medium"
+        self.apply_detection_profile(self.current_profile)
+        
         # Camera calibration matrices
         self.camera_matrix = None
         self.dist_coeffs = None
@@ -190,11 +315,92 @@ class OakDArUcoDetector:
         self.roi_top_left = dai.Point2f(0.4, 0.4)
         self.roi_bottom_right = dai.Point2f(0.6, 0.6)
         
+        # Marker tracking
+        self.trackers = {}
+        self.last_frame_time = time.time()
+        self.estimated_distance = 5000  # Initial estimate: 5m
+        
+        # Performance monitoring
+        self.frame_times = deque(maxlen=30)
+        self.detection_success_rate = deque(maxlen=30)
+        self.skip_frames = 0
+        self.frame_count = 0
+        
         # Initialize the pipeline
         self.initialize_pipeline()
         
         # Load or create camera calibration
         self.load_camera_calibration()
+        
+    def set_power_mode(self, high_performance=False):
+        """
+        Set Jetson power mode based on processing needs
+        """
+        try:
+            if high_performance:
+                # Maximum performance when actively searching for markers
+                os.system("sudo nvpmodel -m 0")  # Max performance mode
+                os.system("sudo jetson_clocks")   # Max clock speeds
+                print("Set Jetson to high performance mode")
+            else:
+                # Power saving when idle or markers are consistently tracked
+                os.system("sudo nvpmodel -m 1")  # Power saving mode
+                print("Set Jetson to power saving mode")
+        except Exception as e:
+            print(f"Failed to set power mode: {e}")
+            
+    def apply_detection_profile(self, profile_name):
+        """
+        Apply detection parameters based on profile
+        """
+        if self.aruco_params is None:
+            return
+            
+        profile = DETECTION_PROFILES[profile_name]
+        for param, value in profile.items():
+            try:
+                setattr(self.aruco_params, param, value)
+            except Exception as e:
+                print(f"Warning: Could not set parameter {param}: {e}")
+                
+        self.current_profile = profile_name
+        print(f"Applied detection profile: {profile_name}")
+        
+    def select_resolution_profile(self, estimated_distance):
+        """
+        Select optimal resolution based on estimated distance
+        """
+        if self.resolution_mode != "adaptive":
+            return RESOLUTION_PROFILES[self.resolution_mode]
+            
+        if estimated_distance > 8000:  # > 8m
+            return RESOLUTION_PROFILES["high"]
+        elif estimated_distance > 3000:  # 3-8m
+            return RESOLUTION_PROFILES["medium"]
+        else:  # < 3m
+            return RESOLUTION_PROFILES["low"]
+            
+    def monitor_performance(self):
+        """
+        Monitor and adapt processing based on performance
+        """
+        if len(self.frame_times) < 10:
+            return
+            
+        # Calculate average processing time
+        avg_time = sum(self.frame_times) / len(self.frame_times)
+        
+        # Calculate detection success rate
+        success_rate = sum(self.detection_success_rate) / len(self.detection_success_rate)
+        
+        print(f"Avg processing time: {avg_time*1000:.1f}ms, Success rate: {success_rate*100:.1f}%")
+        
+        # If processing is too slow, reduce resolution or simplify detection
+        if avg_time > 0.1:  # More than 100ms per frame
+            self.skip_frames = 1  # Process every other frame
+            print("Performance warning: Processing time > 100ms, skipping frames")
+        else:
+            self.skip_frames = 0  # Process every frame
         
     def load_camera_calibration(self):
         """
@@ -250,11 +456,24 @@ class OakDArUcoDetector:
         xout_spatial_data.setStreamName("spatial_data")
         xin_spatial_calc_config.setStreamName("spatial_calc_config")
         
+        # Get initial resolution based on mode
+        if self.resolution_mode == "adaptive":
+            initial_res = RESOLUTION_PROFILES["medium"]
+        else:
+            initial_res = RESOLUTION_PROFILES[self.resolution_mode]
+            
         # Properties
-        rgb_cam.setPreviewSize(640, 400)
+        rgb_cam.setPreviewSize(initial_res[0], initial_res[1])
         rgb_cam.setInterleaved(False)
         rgb_cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         rgb_cam.setFps(30)
+        
+        # Set camera controls for better exposure in varying conditions
+        rgb_cam.initialControl.setAutoExposureEnable(True)
+        rgb_cam.initialControl.setAutoExposureLuminosityPriority(True)
+        rgb_cam.initialControl.setAutoExposureCompensation(0)
+        rgb_cam.initialControl.setAntiBandingMode(dai.CameraControl.AntiBandingMode.AUTO)
+        rgb_cam.initialControl.setAutoWhiteBalanceMode(dai.CameraControl.AutoWhiteBalanceMode.AUTO)
         
         # Use CAM_B and CAM_C instead of deprecated LEFT and RIGHT
         mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -267,6 +486,9 @@ class OakDArUcoDetector:
         stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)  # Updated from RGB
         stereo.setOutputSize(rgb_cam.getPreviewWidth(), rgb_cam.getPreviewHeight())
         
+        # Extended disparity for longer range
+        stereo.setExtendedDisparity(True)
+        
         # Spatial location calculator configuration
         # Use inputConfig.setWaitForMessage() instead of setWaitForConfigInput
         spatial_calc.inputConfig.setWaitForMessage(False)
@@ -275,7 +497,7 @@ class OakDArUcoDetector:
         # Initial config for spatial location calculator
         config = dai.SpatialLocationCalculatorConfigData()
         config.depthThresholds.lowerThreshold = 100
-        config.depthThresholds.upperThreshold = 10000
+        config.depthThresholds.upperThreshold = 15000  # Increased to 15m for long-range detection
         config.roi = dai.Rect(self.roi_top_left, self.roi_bottom_right)
         spatial_calc.initialConfig.addROI(config)
         
@@ -307,14 +529,63 @@ class OakDArUcoDetector:
         
         # Main loop
         while True:
+            start_time = time.time()
+            
             # Get camera frames
             rgb_frame = self.get_rgb_frame()
             depth_frame = self.get_depth_frame()
             spatial_data = self.get_spatial_data()
             
+            # Skip frame processing if needed (for performance)
+            self.frame_count += 1
+            if self.skip_frames > 0 and self.frame_count % (self.skip_frames + 1) != 0:
+                # Still display the last processed frame
+                if hasattr(self, 'last_markers_frame'):
+                    cv2.imshow("RGB", self.last_markers_frame)
+                    
+                if depth_frame is not None:
+                    cv2.imshow("Depth", depth_frame)
+                    
+                # Check for key press
+                if cv2.waitKey(1) == ord('q'):
+                    break
+                continue
+            
             if rgb_frame is not None:
+                # Update detection parameters based on estimated distance
+                if self.estimated_distance > 8000:  # > 8m
+                    if self.current_profile != "far":
+                        self.apply_detection_profile("far")
+                elif self.estimated_distance > 3000:  # 3-8m
+                    if self.current_profile != "medium":
+                        self.apply_detection_profile("medium")
+                else:  # < 3m
+                    if self.current_profile != "close":
+                        self.apply_detection_profile("close")
+                
                 # Process the frame to detect ArUco markers
                 markers_frame, marker_corners, marker_ids = self.detect_aruco_markers(rgb_frame)
+                self.last_markers_frame = markers_frame
+                
+                # Update detection success rate
+                self.detection_success_rate.append(1.0 if marker_ids is not None and len(marker_ids) > 0 else 0.0)
+                
+                # Update marker trackers
+                current_time = time.time()
+                if marker_ids is not None:
+                    for i, marker_id in enumerate(marker_ids):
+                        marker_id_val = marker_id[0]
+                        if marker_id_val in self.trackers:
+                            # Update existing tracker
+                            self.trackers[marker_id_val].update(marker_corners[i][0], current_time)
+                        else:
+                            # Create new tracker
+                            self.trackers[marker_id_val] = MarkerTracker(marker_corners[i][0], marker_id_val, current_time)
+                
+                # Clean up old trackers
+                for marker_id in list(self.trackers.keys()):
+                    if not self.trackers[marker_id].is_valid(current_time):
+                        del self.trackers[marker_id]
                 
                 # If markers are detected, calculate their 3D position
                 if marker_ids is not None:
@@ -323,12 +594,57 @@ class OakDArUcoDetector:
                     
                     # Draw marker information on the frame
                     self.draw_marker_info(markers_frame, marker_corners, marker_ids, spatial_data)
+                    
+                    # Update estimated distance from spatial data
+                    if len(spatial_data) > 0:
+                        # Get average distance of all detected markers
+                        total_z = 0
+                        count = 0
+                        for spatial_point in spatial_data:
+                            z = spatial_point.spatialCoordinates.z
+                            if 100 < z < 20000:  # Valid range: 0.1m to 20m
+                                total_z += z
+                                count += 1
+                        
+                        if count > 0:
+                            # Update estimated distance with exponential smoothing
+                            new_distance = total_z / count
+                            alpha = 0.3  # Smoothing factor
+                            self.estimated_distance = alpha * new_distance + (1 - alpha) * self.estimated_distance
                 
                 # Display the frames
+                cv2.putText(
+                    markers_frame,
+                    f"Est. Distance: {self.estimated_distance/1000:.2f}m",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+                
+                cv2.putText(
+                    markers_frame,
+                    f"Profile: {self.current_profile}",
+                    (10, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+                
                 cv2.imshow("RGB", markers_frame)
                 
                 if depth_frame is not None:
                     cv2.imshow("Depth", depth_frame)
+            
+            # Calculate frame processing time
+            frame_time = time.time() - start_time
+            self.frame_times.append(frame_time)
+            
+            # Periodically monitor performance
+            if len(self.frame_times) >= 30 and self.frame_count % 30 == 0:
+                self.monitor_performance()
             
             # Check for key press
             if cv2.waitKey(1) == ord('q'):
@@ -337,6 +653,50 @@ class OakDArUcoDetector:
         # Clean up
         cv2.destroyAllWindows()
         self.device.close()
+        
+        # Reset Jetson power mode if it was changed
+        if self.high_performance:
+            self.set_power_mode(False)
+        
+    def preprocess_image(self, frame):
+        """
+        Preprocess image to improve marker detection
+        """
+        if self.use_cuda and USE_CUDA:
+            return self.preprocess_image_gpu(frame)
+        else:
+            return self.preprocess_image_cpu(frame)
+    
+    def preprocess_image_cpu(self, frame):
+        """
+        Preprocess image on CPU
+        """
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Apply adaptive histogram equalization for better contrast
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+        
+        return gray
+    
+    def preprocess_image_gpu(self, frame):
+        """
+        Preprocess image on GPU using CUDA
+        """
+        # Upload to GPU
+        gpu_frame = cv2.cuda_GpuMat()
+        gpu_frame.upload(frame)
+        
+        # Convert to grayscale on GPU
+        gpu_gray = cv2.cuda.cvtColor(gpu_frame, cv2.COLOR_BGR2GRAY)
+        
+        # Apply histogram equalization on GPU
+        gpu_gray = cv2.cuda.equalizeHist(gpu_gray)
+        
+        # Download result
+        gray = gpu_gray.download()
+        return gray
         
     def get_rgb_frame(self):
         """
@@ -372,10 +732,10 @@ class OakDArUcoDetector:
         
     def detect_aruco_markers(self, frame):
         """
-        Detect ArUco markers in the frame
+        Detect ArUco markers in the frame using multi-scale approach
         """
-        # Convert to grayscale for better detection
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Preprocess image
+        gray = self.preprocess_image(frame)
         
         # Detect ArUco markers
         corners, ids, rejected = cv2.aruco.detectMarkers(
@@ -384,45 +744,87 @@ class OakDArUcoDetector:
             parameters=self.aruco_params
         )
         
+        # If no markers found and we're looking for distant markers, try with different parameters
+        if (ids is None or len(ids) == 0) and self.current_profile == "far":
+            # Try with enhanced parameters for distant detection
+            backup_params = self.aruco_params
+            try:
+                enhanced_params = cv2.aruco.DetectorParameters.create()
+                enhanced_params.adaptiveThreshConstant = 15
+                enhanced_params.minMarkerPerimeterRate = 0.02
+                enhanced_params.polygonalApproxAccuracyRate = 0.12
+                
+                corners, ids, rejected = cv2.aruco.detectMarkers(
+                    gray, 
+                    self.aruco_dict, 
+                    parameters=enhanced_params
+                )
+            except:
+                # Restore original parameters
+                self.aruco_params = backup_params
+        
+        # If still no markers found, try with a scaled version of the image
+        if ids is None or len(ids) == 0:
+            # Try with 75% scale
+            h, w = gray.shape
+            scaled_gray = cv2.resize(gray, (int(w*0.75), int(h*0.75)))
+            scaled_corners, scaled_ids, _ = cv2.aruco.detectMarkers(
+                scaled_gray, 
+                self.aruco_dict, 
+                parameters=self.aruco_params
+            )
+            
+            # If markers found in scaled image, convert coordinates back to original scale
+            if scaled_ids is not None and len(scaled_ids) > 0:
+                scale_factor = 1/0.75
+                for i in range(len(scaled_corners)):
+                    scaled_corners[i][0][:, 0] *= scale_factor
+                    scaled_corners[i][0][:, 1] *= scale_factor
+                corners = scaled_corners
+                ids = scaled_ids
+        
         # Draw detected markers on the frame
         markers_frame = frame.copy()
-        if ids is not None:
+        if ids is not None and len(ids) > 0:
             cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
             
             # Estimate pose of each marker
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                corners, 
-                MARKER_SIZE, 
-                self.camera_matrix, 
-                self.dist_coeffs
-            )
-            
-            # Draw axis for each marker
-            for i in range(len(ids)):
-                cv2.aruco.drawAxis(
-                    markers_frame, 
+            try:
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                    corners, 
+                    MARKER_SIZE, 
                     self.camera_matrix, 
-                    self.dist_coeffs, 
-                    rvecs[i], 
-                    tvecs[i], 
-                    0.03  # axis length
+                    self.dist_coeffs
                 )
                 
-                # Calculate Euler angles
-                rotation_matrix = cv2.Rodrigues(rvecs[i])[0]
-                r = R.from_matrix(rotation_matrix)
-                euler_angles = r.as_euler('xyz', degrees=True)
-                
-                # Display rotation information
-                cv2.putText(
-                    markers_frame,
-                    f"Marker {ids[i][0]}: Rot X: {euler_angles[0]:.1f}, Y: {euler_angles[1]:.1f}, Z: {euler_angles[2]:.1f}",
-                    (10, 30 + i * 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
+                # Draw axis for each marker
+                for i in range(len(ids)):
+                    cv2.aruco.drawAxis(
+                        markers_frame, 
+                        self.camera_matrix, 
+                        self.dist_coeffs, 
+                        rvecs[i], 
+                        tvecs[i], 
+                        0.1  # axis length (increased for visibility)
+                    )
+                    
+                    # Calculate Euler angles
+                    rotation_matrix = cv2.Rodrigues(rvecs[i])[0]
+                    r = R.from_matrix(rotation_matrix)
+                    euler_angles = r.as_euler('xyz', degrees=True)
+                    
+                    # Display rotation information
+                    cv2.putText(
+                        markers_frame,
+                        f"Marker {ids[i][0]}: Rot X: {euler_angles[0]:.1f}, Y: {euler_angles[1]:.1f}, Z: {euler_angles[2]:.1f}",
+                        (10, 90 + i * 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2
+                    )
+            except Exception as e:
+                print(f"Error estimating pose: {e}")
         
         return markers_frame, corners, ids
         
@@ -436,98 +838,276 @@ class OakDArUcoDetector:
             center_x = np.mean([corner[0][0][0], corner[0][1][0], corner[0][2][0], corner[0][3][0]])
             center_y = np.mean([corner[0][0][1], corner[0][1][1], corner[0][2][1], corner[0][3][1]])
             
+            # Calculate ROI size based on estimated distance
+            # Smaller ROI for distant markers, larger for close ones
+            roi_size = max(0.03, min(0.1, 0.05 * (5000 / max(self.estimated_distance, 500))))
+            
             # Calculate ROI around the marker center
-            roi_size = 0.05  # Size of ROI relative to image size
+            roi_half_size = roi_size / 2
             self.roi_top_left = dai.Point2f(
-                (center_x - 20) / 640,  # Normalize to 0-1 range
-                (center_y - 20) / 400
+                max(0, (center_x / 640) - roi_half_size),  # Normalize to 0-1 range
+                max(0, (center_y / 400) - roi_half_size)
             )
             self.roi_bottom_right = dai.Point2f(
-                (center_x + 20) / 640,
-                (center_y + 20) / 400
+                min(1, (center_x / 640) + roi_half_size),
+                min(1, (center_y / 400) + roi_half_size)
             )
             
             # Send updated config to the device
             cfg = dai.SpatialLocationCalculatorConfig()
             config = dai.SpatialLocationCalculatorConfigData()
             config.depthThresholds.lowerThreshold = 100
-            config.depthThresholds.upperThreshold = 10000
+            config.depthThresholds.upperThreshold = 15000
             config.roi = dai.Rect(self.roi_top_left, self.roi_bottom_right)
             cfg.addROI(config)
             self.spatial_calc_config_queue.send(cfg)
             
+    def update_spatial_calc_roi(self, corners, marker_ids=None):
+        """
+        Update the ROI for spatial location calculation based on marker position
+        Prioritizes the target marker if specified
+        """
+        if len(corners) == 0:
+            return
+            
+        # Find the target marker if specified
+        target_index = None
+        if self.target_id is not None and marker_ids is not None:
+            for i, marker_id in enumerate(marker_ids):
+                if marker_id[0] == self.target_id:
+                    target_index = i
+                    break
+        
+        # Use the target marker if found, otherwise use the first marker
+        corner_index = target_index if target_index is not None else 0
+        corner = corners[corner_index]
+        
+        # Calculate the center of the selected marker
+        center_x = np.mean([corner[0][0][0], corner[0][1][0], corner[0][2][0], corner[0][3][0]])
+        center_y = np.mean([corner[0][0][1], corner[0][1][1], corner[0][2][1], corner[0][3][1]])
+        
+        # Calculate ROI size based on estimated distance
+        # Smaller ROI for distant markers, larger for close ones
+        roi_size = max(0.03, min(0.1, 0.05 * (5000 / max(self.estimated_distance, 500))))
+        
+        # Calculate ROI around the marker center
+        roi_half_size = roi_size / 2
+        self.roi_top_left = dai.Point2f(
+            max(0, (center_x / 640) - roi_half_size),  # Normalize to 0-1 range
+            max(0, (center_y / 400) - roi_half_size)
+        )
+        self.roi_bottom_right = dai.Point2f(
+            min(1, (center_x / 640) + roi_half_size),
+            min(1, (center_y / 400) + roi_half_size)
+        )
+        
+        # Send updated config to the device
+        cfg = dai.SpatialLocationCalculatorConfig()
+        config = dai.SpatialLocationCalculatorConfigData()
+        config.depthThresholds.lowerThreshold = 100
+        config.depthThresholds.upperThreshold = 15000
+        config.roi = dai.Rect(self.roi_top_left, self.roi_bottom_right)
+        cfg.addROI(config)
+        self.spatial_calc_config_queue.send(cfg)
+        
+        # If this is the target marker, store its information
+        if target_index is not None:
+            self.target_found = True
+            self.target_center = (center_x, center_y)
+            self.target_corners = corner[0]
+        else:
+            self.target_found = False
+
     def draw_marker_info(self, frame, corners, ids, spatial_data):
         """
         Draw marker information on the frame
+        Prioritizes the target marker if specified
         """
-        if len(spatial_data) > 0 and ids is not None:
-            for i, spatial_point in enumerate(spatial_data):
-                # Get spatial coordinates
-                x = spatial_point.spatialCoordinates.x
-                y = spatial_point.spatialCoordinates.y
-                z = spatial_point.spatialCoordinates.z
+        if len(spatial_data) == 0 or ids is None:
+            return frame
+            
+        # Create a mapping from marker IDs to spatial data
+        marker_to_spatial = {}
+        for i, marker_id in enumerate(ids):
+            marker_id_val = marker_id[0]
+            if i < len(spatial_data):
+                marker_to_spatial[marker_id_val] = spatial_data[i]
+        
+        # Find the target marker if specified
+        target_id_val = None
+        if self.target_id is not None:
+            for marker_id in ids:
+                if marker_id[0] == self.target_id:
+                    target_id_val = marker_id[0]
+                    break
+        
+        # Process all markers, but prioritize the target
+        processed_ids = set()
+        
+        # First process the target if found
+        if target_id_val is not None and target_id_val in marker_to_spatial:
+            self._draw_single_marker_info(
+                frame, 
+                corners[np.where(ids == target_id_val)[0][0]], 
+                target_id_val, 
+                marker_to_spatial[target_id_val], 
+                is_target=True
+            )
+            processed_ids.add(target_id_val)
+            
+            # Add targeting guidance (direction to target)
+            self._draw_targeting_guidance(frame)
+        
+        # Then process all other markers
+        for i, marker_id in enumerate(ids):
+            marker_id_val = marker_id[0]
+            if marker_id_val not in processed_ids and marker_id_val in marker_to_spatial:
+                self._draw_single_marker_info(
+                    frame, 
+                    corners[i], 
+                    marker_id_val, 
+                    marker_to_spatial[marker_id_val], 
+                    is_target=False
+                )
+                processed_ids.add(marker_id_val)
+        
+        return frame
+    
+    def _draw_single_marker_info(self, frame, corner, marker_id, spatial_point, is_target=False):
+        """
+        Draw information for a single marker
+        """
+        # Get spatial coordinates
+        x = spatial_point.spatialCoordinates.x
+        y = spatial_point.spatialCoordinates.y
+        z = spatial_point.spatialCoordinates.z
+        
+        # Draw ROI rectangle
+        roi = spatial_point.config.roi
+        roi = roi.denormalize(width=frame.shape[1], height=frame.shape[0])
+        xmin = int(roi.topLeft().x)
+        ymin = int(roi.topLeft().y)
+        xmax = int(roi.bottomRight().x)
+        ymax = int(roi.bottomRight().y)
+        
+        # Use different color for target marker
+        rect_color = (0, 0, 255) if is_target else (255, 255, 0)  # Red for target, yellow for others
+        rect_thickness = 3 if is_target else 2
+        
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), rect_color, rect_thickness)
+        
+        # Display spatial coordinates
+        text_color = (0, 255, 255) if is_target else (255, 255, 255)  # Cyan for target, white for others
+        
+        # Add "TARGET" label if this is the target marker
+        if is_target:
+            cv2.putText(
+                frame,
+                "TARGET",
+                (xmin + 10, ymin - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2
+            )
+            
+            # Draw a more prominent highlight for the target
+            # Draw corners with larger points
+            for pt in corner[0]:
+                cv2.circle(frame, (int(pt[0]), int(pt[1])), 5, (0, 0, 255), -1)
                 
-                # Draw ROI rectangle
-                roi = spatial_point.config.roi
-                roi = roi.denormalize(width=frame.shape[1], height=frame.shape[0])
-                xmin = int(roi.topLeft().x)
-                ymin = int(roi.topLeft().y)
-                xmax = int(roi.bottomRight().x)
-                ymax = int(roi.bottomRight().y)
+            # Draw a crosshair on the target
+            center_x = int(np.mean([corner[0][0][0], corner[0][1][0], corner[0][2][0], corner[0][3][0]]))
+            center_y = int(np.mean([corner[0][0][1], corner[0][1][1], corner[0][2][1], corner[0][3][1]]))
+            cv2.line(frame, (center_x - 20, center_y), (center_x + 20, center_y), (0, 0, 255), 2)
+            cv2.line(frame, (center_x, center_y - 20), (center_x, center_y + 20), (0, 0, 255), 2)
+            cv2.circle(frame, (center_x, center_y), 15, (0, 0, 255), 2)
+        
+        # Display marker ID and distance prominently
+        cv2.putText(
+            frame,
+            f"ID: {marker_id}",
+            (xmin + 10, ymin + 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            text_color,
+            2
+        )
+        
+        cv2.putText(
+            frame,
+            f"Dist: {z/1000:.2f}m",
+            (xmin + 10, ymin + 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            text_color,
+            2
+        )
+        
+        # Display X, Y coordinates
+        cv2.putText(
+            frame,
+            f"X: {x/1000:.2f}m Y: {y/1000:.2f}m",
+            (xmin + 10, ymin + 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            text_color,
+            1
+        )
+    
+    def _draw_targeting_guidance(self, frame):
+        """
+        Draw targeting guidance to help navigate to the target
+        """
+        if not hasattr(self, 'target_found') or not self.target_found:
+            return
+            
+        # Get frame center
+        h, w = frame.shape[:2]
+        center_x, center_y = w // 2, h // 2
+        
+        # Calculate offset from center
+        if hasattr(self, 'target_center'):
+            target_x, target_y = self.target_center
+            offset_x = target_x - center_x
+            offset_y = target_y - center_y
+            
+            # Draw guidance arrow
+            arrow_length = min(100, max(20, int(np.sqrt(offset_x**2 + offset_y**2) / 5)))
+            angle = np.arctan2(offset_y, offset_x)
+            end_x = int(center_x + np.cos(angle) * arrow_length)
+            end_y = int(center_y + np.sin(angle) * arrow_length)
+            
+            # Only draw if target is not centered
+            if abs(offset_x) > 30 or abs(offset_y) > 30:
+                # Draw direction arrow
+                cv2.arrowedLine(frame, (center_x, center_y), (end_x, end_y), (0, 255, 0), 2, tipLength=0.3)
                 
-                # Check if this is the target marker
-                is_target = False
-                if self.target_id is not None and i < len(ids):
-                    marker_id = ids[i][0]
-                    if marker_id == self.target_id:
-                        is_target = True
-                
-                # Use different color for target marker
-                rect_color = (0, 0, 255) if is_target else (255, 255, 0)  # Red for target, yellow for others
-                rect_thickness = 3 if is_target else 2
-                
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), rect_color, rect_thickness)
-                
-                # Display spatial coordinates
-                text_color = (0, 255, 255) if is_target else (255, 255, 255)  # Cyan for target, white for others
-                
-                # Add "TARGET" label if this is the target marker
-                if is_target:
-                    cv2.putText(
-                        frame,
-                        "TARGET",
-                        (xmin + 10, ymin - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 0, 255),
-                        2
-                    )
-                
+                # Add guidance text
+                direction_text = ""
+                if abs(offset_y) > 30:
+                    direction_text += "UP " if offset_y < 0 else "DOWN "
+                if abs(offset_x) > 30:
+                    direction_text += "LEFT" if offset_x < 0 else "RIGHT"
+                    
                 cv2.putText(
                     frame,
-                    f"X: {x/1000:.2f} m",
-                    (xmin + 10, ymin + 20),
+                    direction_text,
+                    (center_x + 20, center_y - 20),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    text_color,
+                    0.7,
+                    (0, 255, 0),
                     2
                 )
+            else:
+                # Target is centered
                 cv2.putText(
                     frame,
-                    f"Y: {y/1000:.2f} m",
-                    (xmin + 10, ymin + 40),
+                    "TARGET CENTERED",
+                    (center_x - 100, center_y - 20),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    text_color,
-                    2
-                )
-                cv2.putText(
-                    frame,
-                    f"Z: {z/1000:.2f} m",
-                    (xmin + 10, ymin + 60),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    text_color,
+                    0.7,
+                    (0, 255, 0),
                     2
                 )
 
@@ -535,15 +1115,22 @@ def main():
     """
     Main function
     """
-    import argparse
-    
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='OAK-D ArUco 6x6 Marker Detector')
+    parser = argparse.ArgumentParser(description='OAK-D ArUco 6x6 Marker Detector for Drone Applications')
     parser.add_argument('--target', '-t', type=int, help='Target marker ID to highlight')
+    parser.add_argument('--resolution', '-r', choices=['low', 'medium', 'high', 'adaptive'], 
+                      default='adaptive', help='Resolution mode (default: adaptive)')
+    parser.add_argument('--cuda', '-c', action='store_true', help='Enable CUDA acceleration if available')
+    parser.add_argument('--performance', '-p', action='store_true', help='Enable high performance mode on Jetson')
     args = parser.parse_args()
     
-    print("Initializing OAK-D ArUco 6x6 Marker Detector...")
-    detector = OakDArUcoDetector(target_id=args.target)
+    print("Initializing OAK-D ArUco 6x6 Marker Detector for Drone Applications...")
+    detector = OakDArUcoDetector(
+        target_id=args.target,
+        resolution=args.resolution,
+        use_cuda=args.cuda,
+        high_performance=args.performance
+    )
     detector.start()
 
 if __name__ == "__main__":
