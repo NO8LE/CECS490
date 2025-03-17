@@ -920,39 +920,65 @@ class OakDArUcoDetector:
             
             # Estimate pose of each individual marker
             try:
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, 
-                    MARKER_SIZE, 
-                    self.camera_matrix, 
-                    self.dist_coeffs
-                )
-                
-                # Draw axis for each marker
-                for i in range(len(ids)):
-                    cv2.aruco.drawAxis(
-                        markers_frame, 
+                # Ensure we have valid calibration data
+                if self.camera_matrix is not None and self.dist_coeffs is not None:
+                    rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                        corners, 
+                        MARKER_SIZE, 
                         self.camera_matrix, 
-                        self.dist_coeffs, 
-                        rvecs[i], 
-                        tvecs[i], 
-                        0.1  # axis length (increased for visibility)
+                        self.dist_coeffs
                     )
                     
-                    # Calculate Euler angles
-                    rotation_matrix = cv2.Rodrigues(rvecs[i])[0]
-                    r = R.from_matrix(rotation_matrix)
-                    euler_angles = r.as_euler('xyz', degrees=True)
-                    
-                    # Display rotation information
-                    cv2.putText(
-                        markers_frame,
-                        f"Marker {ids[i][0]}: Rot X: {euler_angles[0]:.1f}, Y: {euler_angles[1]:.1f}, Z: {euler_angles[2]:.1f}",
-                        (10, 90 + i * 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (0, 255, 0),
-                        2
-                    )
+                    # Check for valid pose data
+                    if rvecs is not None and tvecs is not None:
+                        # Draw axis for each marker (with smaller axis length to reduce visual clutter)
+                        for i in range(len(ids)):
+                            # Calculate distance to decide if we should show axes
+                            distance = np.linalg.norm(tvecs[i]) * 1000  # in mm
+                            max_display_distance = 10000  # Only show axes for markers within 10m
+                            
+                            # Use distance to determine axis length (smaller at greater distances)
+                            axis_length = max(0.05, min(0.15, 0.2 * (1 - distance/15000)))
+                            
+                            # Only display axes for closer markers to reduce visual clutter
+                            if distance < max_display_distance:
+                                # Apply smoothing to rotation vectors to reduce jitter
+                                if hasattr(self, 'prev_rvecs') and len(self.prev_rvecs) > i:
+                                    smooth_factor = 0.7  # Higher values mean less smoothing
+                                    rvecs[i] = smooth_factor * rvecs[i] + (1 - smooth_factor) * self.prev_rvecs[i]
+                                
+                                cv2.aruco.drawAxis(
+                                    markers_frame, 
+                                    self.camera_matrix, 
+                                    self.dist_coeffs, 
+                                    rvecs[i], 
+                                    tvecs[i], 
+                                    axis_length
+                                )
+                                
+                                # Calculate Euler angles
+                                rotation_matrix = cv2.Rodrigues(rvecs[i])[0]
+                                r = R.from_matrix(rotation_matrix)
+                                euler_angles = r.as_euler('xyz', degrees=True)
+                                
+                                # Display rotation information (only for a limited number of markers)
+                                if i < 3:  # Limit to 3 markers to avoid cluttering the display
+                                    cv2.putText(
+                                        markers_frame,
+                                        f"ID {ids[i][0]}: Rot X: {euler_angles[0]:.1f}, Y: {euler_angles[1]:.1f}, Z: {euler_angles[2]:.1f}",
+                                        (10, 90 + i * 30),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        0.6,
+                                        (0, 255, 0),
+                                        2
+                                    )
+                        
+                        # Store current rotation vectors for next frame's smoothing
+                        self.prev_rvecs = rvecs.copy()
+                    else:
+                        print("Invalid pose data returned")
+                else:
+                    print("Camera not calibrated, cannot estimate pose")
             except Exception as e:
                 print(f"Error estimating pose: {e}")
         
