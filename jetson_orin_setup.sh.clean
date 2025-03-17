@@ -68,7 +68,7 @@ sleep 10
 echo "[INFO] Continuing with setup..."
 
 run_cmd "ln -s /usr/local/cuda-12.8 /usr/local/cuda"
-run cmd "echo \"export PATH='/usr/local/cuda:$PATH'\" >> ${HOME}/.bashrc"
+run_cmd "echo \"export PATH='/usr/local/cuda:$PATH'\" >> ${HOME}/.bashrc"
 run_cmd "source ${HOME}/.bashrc"
 
 # Install dependencies required for OpenCV
