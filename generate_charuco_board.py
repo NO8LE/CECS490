@@ -1,296 +1,318 @@
 #!/usr/bin/env python3
 
 """
-CharucoBoard Generator
+CharucoBoard Generator for Camera Calibration
 
-This script generates a CharucoBoard pattern and saves it as a PNG file.
-The CharucoBoard is a hybrid between a chessboard and ArUco markers,
-which provides more robust and accurate camera calibration.
-
-By default, it generates a board with 6x6 ArUco markers that fits on a
-standard 8.5x11 inch (letter size) sheet of printer paper.
+This script generates a ChArUco board pattern and saves it as a PDF for printing.
+The board combines ArUco markers embedded in a chessboard pattern, which provides
+more accurate camera calibration and pose estimation.
 
 Usage:
-  python3 generate_charuco_board.py [squares_x] [squares_y] [square_length] [marker_length] [output_size]
+  python3 generate_charuco_board.py [--squares SQUARES] [--size SIZE] [--output FILENAME] [--drone]
 
-  squares_x: Number of squares in X direction (default: 6)
-  squares_y: Number of squares in Y direction (default: 8)
-  square_length: Length of square side in pixels (default: 200)
-  marker_length: Length of marker side in pixels (default: 150)
-  output_size: Size of the output image in pixels (default: 2000)
+Options:
+  --squares, -s  Squares in X and Y direction (default: 6x6)
+  --size, -z     Size of the printed board in inches (default: 12)
+  --output, -o   Output filename (default: charuco_board.pdf)
+  --drone, -d    Enable drone-optimized settings (larger margins, detection range info)
 
-Example:
-  python3 generate_charuco_board.py 6 8 200 150 2000
-  This will generate a CharucoBoard with 6x8 squares, each 200 pixels,
-  with markers of 150 pixels, in a 2000x2000 pixel image.
+Examples:
+  python3 generate_charuco_board.py
+  python3 generate_charuco_board.py --squares 7 --size 15 --output custom_board.pdf
+  python3 generate_charuco_board.py --drone --size 24 --output drone_board.pdf
+
+Notes:
+  For drone applications (--drone flag), larger boards with fewer squares are recommended:
+  - 12x12 inches (30.5x30.5 cm) board is good for ranges of 0.5-8m
+  - 24x24 inches (61x61 cm) board is recommended for ranges of 3-12m
 """
 
-import os
-import sys
 import numpy as np
+import cv2
+import argparse
+import os
+import datetime
+from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
-# Import OpenCV
-try:
-    import cv2
-    print(f"OpenCV version: {cv2.__version__}")
-except ImportError:
-    print("Error: OpenCV (cv2) not found.")
-    print("Please install OpenCV:")
-    print("  pip install opencv-python opencv-contrib-python")
-    sys.exit(1)
+# Create calibration patterns directory if it doesn't exist
+PATTERNS_DIR = "calibration_patterns"
+os.makedirs(PATTERNS_DIR, exist_ok=True)
 
-# Import ArUco module - try different approaches for different OpenCV installations
-try:
-    # First try direct import from cv2
-    if hasattr(cv2, 'aruco'):
-        print("Using cv2.aruco")
-        aruco = cv2.aruco
-    else:
-        # Try to import as a separate module (older OpenCV versions)
-        try:
-            from cv2 import aruco
-            print("Using from cv2 import aruco")
-            # Make it available as cv2.aruco for consistency
-            cv2.aruco = aruco
-        except ImportError:
-            # For Jetson with custom OpenCV builds
-            try:
-                sys.path.append('/usr/lib/python3/dist-packages/cv2/python-3.10')
-                from cv2 import aruco
-                print("Using Jetson-specific aruco import")
-                cv2.aruco = aruco
-            except (ImportError, FileNotFoundError):
-                print("Error: OpenCV ArUco module not found.")
-                print("Please ensure opencv-contrib-python is installed:")
-                print("  pip install opencv-contrib-python")
-                print("\nFor Jetson platforms, you might need to install it differently:")
-                print("  sudo apt-get install python3-opencv")
-                sys.exit(1)
-except Exception as e:
-    print(f"Error importing ArUco module: {str(e)}")
-    print("Please ensure opencv-contrib-python is installed correctly")
-    sys.exit(1)
-
-# Verify ArUco module is working
-try:
-    # Try to access a dictionary to verify ArUco is working
-    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-    print("ArUco module successfully loaded and verified (using Dictionary_get)")
-    # Store the method to use later
-    dictionary_method = "old"
-except Exception as e:
-    # If Dictionary_get fails, try the newer API
-    try:
-        aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
-        print("ArUco module successfully loaded and verified (using Dictionary.get)")
-        # Store the method to use later
-        dictionary_method = "new"
-    except Exception as e2:
-        # If both methods fail, try to create a dictionary directly
-        try:
-            # Try to create a dictionary directly (OpenCV 4.x approach)
-            aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
-            print("ArUco module successfully loaded and verified (using Dictionary.create)")
-            # Store the method to use later
-            dictionary_method = "create"
-        except Exception as e3:
-            # Last resort: try to create a dictionary with parameters
-            try:
-                # Try to create a dictionary with parameters (another approach)
-                aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250)
-                print("ArUco module successfully loaded and verified (using Dictionary constructor)")
-                # Store the method to use later
-                dictionary_method = "constructor"
-            except Exception as e4:
-                print(f"Error verifying ArUco module: {str(e4)}")
-                print("ArUco module found but not working correctly")
-                print("\nDetailed error information:")
-                print(f"Dictionary_get error: {str(e)}")
-                print(f"Dictionary.get error: {str(e2)}")
-                print(f"Dictionary.create error: {str(e3)}")
-                print(f"Dictionary constructor error: {str(e4)}")
-                print("\nPlease check your OpenCV installation and version.")
-                sys.exit(1)
-
-# Create output directory if it doesn't exist
-OUTPUT_DIR = "calibration_patterns"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-def get_aruco_dictionary(dictionary_id=cv2.aruco.DICT_6X6_250):
+def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0, 
+                           drone_mode=False, dpi=300):
     """
-    Get the ArUco dictionary using the method that worked during initialization
-    
-    Args:
-        dictionary_id: ArUco dictionary ID to use
-        
-    Returns:
-        The ArUco dictionary
-    """
-    if dictionary_method == "old":
-        return cv2.aruco.Dictionary_get(dictionary_id)
-    elif dictionary_method == "new":
-        return cv2.aruco.Dictionary.get(dictionary_id)
-    elif dictionary_method == "create":
-        return cv2.aruco.Dictionary.create(dictionary_id)
-    elif dictionary_method == "constructor":
-        return cv2.aruco.Dictionary(dictionary_id)
-    else:
-        # Fallback to trying all methods
-        try:
-            return cv2.aruco.Dictionary_get(dictionary_id)
-        except:
-            try:
-                return cv2.aruco.Dictionary.get(dictionary_id)
-            except:
-                try:
-                    return cv2.aruco.Dictionary.create(dictionary_id)
-                except:
-                    return cv2.aruco.Dictionary(dictionary_id)
-
-def create_charuco_board(squares_x=6, squares_y=8, square_length=200, marker_length=150, dictionary_id=cv2.aruco.DICT_6X6_250):
-    """
-    Create a CharucoBoard object
+    Generate a CharucoBoard pattern.
     
     Args:
         squares_x: Number of squares in X direction
         squares_y: Number of squares in Y direction
-        square_length: Length of square side in pixels
-        marker_length: Length of marker side in pixels
-        dictionary_id: ArUco dictionary ID to use
+        board_size_inches: Total board size in inches
+        drone_mode: Whether to use drone-optimized settings
+        dpi: DPI for the output image
         
     Returns:
-        The CharucoBoard object
+        The board image suitable for printing
     """
-    # Get the ArUco dictionary
-    aruco_dict = get_aruco_dictionary(dictionary_id)
+    # Calculate square size in inches
+    square_length_inches = board_size_inches / squares_x
+    # Marker size is 75% of square size
+    marker_length_inches = square_length_inches * 0.75
+    
+    # Convert sizes to pixels at the given DPI
+    square_length = int(square_length_inches * dpi)
+    marker_length = int(marker_length_inches * dpi)
+    
+    # Create the ArUco dictionary - using 6x6 250
+    try:
+        # Try new API first
+        aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
+    except:
+        # Fall back to old API
+        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
     
     # Create the CharucoBoard
     try:
-        # Try the newer API first
-        board = cv2.aruco.CharucoBoard.create(
+        # Try new API first
+        charuco_board = cv2.aruco.CharucoBoard.create(
             squaresX=squares_x,
             squaresY=squares_y,
             squareLength=square_length,
             markerLength=marker_length,
             dictionary=aruco_dict
         )
-        print("Created CharucoBoard using CharucoBoard.create")
-        return board
-    except Exception as e:
-        try:
-            # Try the older API
-            board = cv2.aruco.CharucoBoard_create(
-                squaresX=squares_x,
-                squaresY=squares_y,
-                squareLength=square_length,
-                markerLength=marker_length,
-                dictionary=aruco_dict
-            )
-            print("Created CharucoBoard using CharucoBoard_create")
-            return board
-        except Exception as e2:
-            print(f"Error creating CharucoBoard: {str(e)}")
-            print(f"Second error: {str(e2)}")
-            print("Please check your OpenCV installation and version.")
-            sys.exit(1)
-
-def generate_charuco_board_image(board, output_size=2000):
-    """
-    Generate a CharucoBoard image
+    except:
+        # Fall back to old API
+        charuco_board = cv2.aruco.CharucoBoard_create(
+            squaresX=squares_x,
+            squaresY=squares_y,
+            squareLength=square_length,
+            markerLength=marker_length,
+            dictionary=aruco_dict
+        )
     
-    Args:
-        board: CharucoBoard object
-        output_size: Size of the output image in pixels
-        
-    Returns:
-        The CharucoBoard image
-    """
     # Generate the board image
-    try:
-        # Try the newer API first
-        board_image = board.draw((output_size, output_size))
-        print("Generated board image using board.draw")
-    except Exception as e:
-        try:
-            # Try the older API
-            board_image = board.draw((output_size, output_size))
-            print("Generated board image using board.draw (older API)")
-        except Exception as e2:
-            print(f"Error generating board image: {str(e)}")
-            print(f"Second error: {str(e2)}")
-            print("Please check your OpenCV installation and version.")
-            sys.exit(1)
+    board_img = charuco_board.draw(
+        (squares_x * square_length, squares_y * square_length)
+    )
     
-    return board_image
+    # Add margins for printing (larger margin for drone boards)
+    margin = int((1.0 if drone_mode else 0.5) * dpi)
+    img_with_margin = np.ones((
+        board_img.shape[0] + 2 * margin,
+        board_img.shape[1] + 2 * margin
+    ), dtype=np.uint8) * 255
+    
+    # Place the board in the center
+    img_with_margin[margin:margin+board_img.shape[0], 
+                    margin:margin+board_img.shape[1]] = board_img
+    
+    # Add information text
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text_color = 0  # Black
+    
+    if drone_mode:
+        # Add drone-specific information
+        # Title and specifications
+        cv2.putText(img_with_margin, 
+                    f"DRONE CALIBRATION PATTERN", 
+                    (margin, margin - 50), 
+                    font, 1.2, text_color, 3)
+        
+        cv2.putText(img_with_margin, 
+                    f"CharucoBoard {squares_x}x{squares_y} squares, ArUco 6x6 dictionary", 
+                    (margin, margin - 25), 
+                    font, 0.8, text_color, 2)
+                    
+        # Add physical size information
+        sq_cm = square_length_inches * 2.54  # convert to cm
+        mk_cm = marker_length_inches * 2.54  # convert to cm
+        
+        cv2.putText(img_with_margin, 
+                    f"Board size: {board_size_inches}x{board_size_inches} inches ({board_size_inches*2.54:.1f}x{board_size_inches*2.54:.1f} cm)", 
+                    (margin, margin - 0), 
+                    font, 0.7, text_color, 2)
+                    
+        cv2.putText(img_with_margin, 
+                    f"Square size: {square_length_inches:.2f}in ({sq_cm:.1f}cm), Marker size: {marker_length_inches:.2f}in ({mk_cm:.1f}cm)", 
+                    (margin, margin + 25), 
+                    font, 0.7, text_color, 2)
+        
+        # Add calibration instructions
+        instructions = [
+            "DRONE CALIBRATION INSTRUCTIONS:",
+            "1. Print this pattern at 100% scale (verify measurements)",
+            "2. Mount on a rigid, flat surface",
+            "3. Capture frames from multiple distances (0.5m to 12m)",
+            "4. Run: python3 calibrate_camera.py --charuco " + 
+               f"{squares_x} {squares_y} {square_length_inches * 0.0254:.4f}" + " --drone"
+        ]
+        
+        for i, line in enumerate(instructions):
+            cv2.putText(img_with_margin, 
+                        line, 
+                        (margin, img_with_margin.shape[0] - margin - 150 + i * 30), 
+                        font, 0.7, text_color, 2)
+                        
+        # Add distance optimization guidance
+        cv2.putText(img_with_margin, 
+                    "DETECTION RANGE GUIDANCE:", 
+                    (margin, img_with_margin.shape[0] - margin - 30), 
+                    font, 0.7, text_color, 2)
+                    
+        # Calculate rough detection range based on board size
+        max_range = board_size_inches / 1.5  # rough estimate 
+        cv2.putText(img_with_margin, 
+                    f"This {board_size_inches}\" board is optimized for detection at {0.5}-{max_range:.1f}m range", 
+                    (margin, img_with_margin.shape[0] - margin), 
+                    font, 0.7, text_color, 2)
+    else:
+        # Add standard calibration information
+        cv2.putText(img_with_margin, 
+                    f"CharucoBoard {squares_x}x{squares_y} squares, ArUco 6x6 dictionary", 
+                    (margin, margin - 30), 
+                    font, 1, text_color, 2)
+        cv2.putText(img_with_margin, 
+                    f"Square size: {square_length_inches:.3f}in, Marker size: {marker_length_inches:.3f}in", 
+                    (margin, margin - 5), 
+                    font, 0.7, text_color, 2)
+        
+        # Add calibration instructions
+        instructions = [
+            "Instructions for calibration:",
+            "1. Print this pattern at accurate size",
+            "2. Mount on a rigid, flat surface",
+            "3. Run: python3 calibrate_camera.py --charuco " + 
+               f"{squares_x} {squares_y} {square_length_inches * 0.0254:.4f}"
+        ]
+        
+        for i, line in enumerate(instructions):
+            cv2.putText(img_with_margin, 
+                        line, 
+                        (margin, img_with_margin.shape[0] - margin + 5 + i * 25), 
+                        font, 0.7, text_color, 2)
+    
+    return img_with_margin
+
+def save_as_pdf(img, filename, dpi=300):
+    """Save the image as a PDF file"""
+    with PdfPages(filename) as pdf:
+        plt.figure(figsize=(img.shape[1]/dpi, img.shape[0]/dpi), dpi=dpi)
+        plt.imshow(img, cmap='gray')
+        plt.axis('off')
+        plt.tight_layout(pad=0)
+        pdf.savefig()
+        plt.close()
 
 def main():
     # Parse command line arguments
-    squares_x = 6
-    squares_y = 8
-    square_length = 200
-    marker_length = 150
-    output_size = 2000
+    parser = argparse.ArgumentParser(description='Generate CharucoBoard pattern for camera calibration')
+    parser.add_argument('--squares', '-s', type=int, default=6,
+                        help='Number of squares in both X and Y directions (default: 6)')
+    parser.add_argument('--size', '-z', type=float, default=12.0,
+                        help='Total board size in inches (default: 12)')
+    parser.add_argument('--output', '-o', type=str, default=None,
+                        help='Output filename (default: charuco_board.pdf or drone_charuco_board.pdf if --drone is used)')
+    parser.add_argument('--drone', '-d', action='store_true',
+                        help='Enable drone-optimized settings')
+    args = parser.parse_args()
     
-    if len(sys.argv) > 1:
-        squares_x = int(sys.argv[1])
-    if len(sys.argv) > 2:
-        squares_y = int(sys.argv[2])
-    if len(sys.argv) > 3:
-        square_length = int(sys.argv[3])
-    if len(sys.argv) > 4:
-        marker_length = int(sys.argv[4])
-    if len(sys.argv) > 5:
-        output_size = int(sys.argv[5])
+    # Set default output filename based on mode
+    if args.output is None:
+        args.output = "drone_charuco_board.pdf" if args.drone else "charuco_board.pdf"
     
-    # Validate input
-    if squares_x < 2 or squares_y < 2:
-        print("Error: Number of squares must be at least 2x2.")
-        sys.exit(1)
+    # Calculate board parameters
+    squares = args.squares
+    board_size = args.size
+    square_length_inches = board_size / squares  # inches per square
+    marker_length_inches = square_length_inches * 0.75  # 75% of square size
     
-    if marker_length >= square_length:
-        print("Error: Marker length must be smaller than square length.")
-        sys.exit(1)
+    # Print generation information
+    mode_str = "Drone-Optimized " if args.drone else ""
+    print(f"Generating {mode_str}{squares}x{squares} CharucoBoard pattern")
+    print(f"Total size: {board_size}in x {board_size}in ({board_size*2.54:.1f}cm x {board_size*2.54:.1f}cm)")
+    print(f"Square size: {square_length_inches:.3f}in ({square_length_inches*2.54:.1f}cm)")
+    print(f"Marker size: {marker_length_inches:.3f}in ({marker_length_inches*2.54:.1f}cm)")
     
-    if output_size < 500 or output_size > 8000:
-        print("Error: Output size must be between 500 and 8000 pixels.")
-        sys.exit(1)
+    # For drone mode, show detection range estimate
+    if args.drone:
+        min_range = 0.5  # meters
+        max_range = board_size / 1.5  # rough estimate based on board size
+        print(f"Optimized for detection range: {min_range}-{max_range:.1f} meters")
+        
+        if board_size < 12:
+            print("\nWARNING: Small board size may limit detection range")
+            print("For long-range drone applications, board sizes of 12-24 inches are recommended")
     
-    # Create the CharucoBoard
-    print(f"Creating CharucoBoard with {squares_x}x{squares_y} squares...")
-    board = create_charuco_board(
-        squares_x=squares_x,
-        squares_y=squares_y,
-        square_length=square_length,
-        marker_length=marker_length,
-        dictionary_id=cv2.aruco.DICT_6X6_250
+    # Generate the board
+    board_img = generate_charuco_board(
+        squares_x=squares,
+        squares_y=squares,
+        board_size_inches=board_size,
+        drone_mode=args.drone
     )
     
-    # Generate the board image
-    print(f"Generating board image with size {output_size}x{output_size} pixels...")
-    board_image = generate_charuco_board_image(board, output_size)
+    # Get current date for filenames
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Save the board image
-    filename = os.path.join(OUTPUT_DIR, f"charuco_board_{squares_x}x{squares_y}.png")
-    cv2.imwrite(filename, board_image)
-    print(f"CharucoBoard saved to {filename}")
+    # Create output filenames with paths in the calibration_patterns directory
+    if args.output is None:
+        base_filename = f"charuco_{squares}x{squares}_{board_size}in_{timestamp}"
+        if args.drone:
+            base_filename = f"drone_{base_filename}"
+    else:
+        # Extract base filename without extension
+        base_filename = os.path.splitext(os.path.basename(args.output))[0]
     
-    # Save board configuration
-    config_filename = os.path.join(OUTPUT_DIR, f"charuco_board_{squares_x}x{squares_y}_config.txt")
-    with open(config_filename, 'w') as f:
-        f.write(f"Dictionary: DICT_6X6_250\n")
-        f.write(f"Squares X: {squares_x}\n")
-        f.write(f"Squares Y: {squares_y}\n")
-        f.write(f"Square Length: {square_length}\n")
-        f.write(f"Marker Length: {marker_length}\n")
-    print(f"Board configuration saved to {config_filename}")
+    # Create file paths
+    pdf_file = os.path.join(PATTERNS_DIR, base_filename + ".pdf")
+    png_file = os.path.join(PATTERNS_DIR, base_filename + ".png")
+    config_file = os.path.join(PATTERNS_DIR, base_filename + "_config.txt")
     
-    print("\nPrinting Instructions:")
-    print("1. Print this CharucoBoard on a standard 8.5x11 inch (letter size) sheet of paper")
-    print("2. Measure the actual size of the squares on your printed board")
-    print("3. When using for calibration, specify the actual physical size of the squares:")
-    print(f"   python3 calibrate_camera.py --charuco {squares_x} {squares_y} [measured_square_size_in_meters]")
-    print("\nNote: The default 6x8 configuration is designed to fit optimally on letter paper")
-    print("with the correct aspect ratio (portrait orientation).")
+    # Save as PDF
+    save_as_pdf(board_img, pdf_file)
+    print(f"CharucoBoard saved as {pdf_file}")
+    
+    # Also save as PNG for preview
+    cv2.imwrite(png_file, board_img)
+    print(f"Preview saved as {png_file}")
+    
+    # Calculate calibration parameters
+    square_size_meters = (board_size / squares) * 0.0254  # convert to meters
+    marker_size_meters = square_size_meters * 0.75
+    
+    # Save configuration file
+    with open(config_file, 'w') as f:
+        f.write("# CharucoBoard Configuration\n")
+        f.write(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"Board Type: {'Drone-Optimized ' if args.drone else ''}CharucoBoard\n")
+        f.write(f"Squares: {squares}x{squares}\n")
+        f.write(f"Dictionary: DICT_6X6_250\n\n")
+        
+        f.write("# Physical Dimensions\n")
+        f.write(f"Board Size (inches): {board_size}x{board_size}\n")
+        f.write(f"Board Size (cm): {board_size*2.54:.1f}x{board_size*2.54:.1f}\n")
+        f.write(f"Square Size (inches): {square_length_inches:.4f}\n")
+        f.write(f"Square Size (cm): {square_length_inches*2.54:.4f}\n")
+        f.write(f"Square Size (meters): {square_size_meters:.6f}\n")
+        f.write(f"Marker Size (inches): {marker_length_inches:.4f}\n")
+        f.write(f"Marker Size (cm): {marker_length_inches*2.54:.4f}\n")
+        f.write(f"Marker Size (meters): {marker_size_meters:.6f}\n\n")
+        
+        if args.drone:
+            f.write("# Drone Detection Range\n")
+            f.write(f"Estimated Detection Range: 0.5m - {board_size/1.5:.1f}m\n\n")
+        
+        f.write("# Calibration Command\n")
+        drone_flag = " --drone" if args.drone else ""
+        f.write(f"python3 calibrate_camera.py --charuco {squares} {squares} {square_size_meters:.6f}{drone_flag}\n")
+    
+    print(f"Configuration saved as {config_file}")
+    
+    # Print calibration command for user reference
+    drone_flag = " --drone" if args.drone else ""
+    print(f"\nTo calibrate with this board, run:")
+    print(f"python3 calibrate_camera.py --charuco {squares} {squares} {square_size_meters:.6f}{drone_flag}")
 
 if __name__ == "__main__":
     main()

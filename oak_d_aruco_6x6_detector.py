@@ -569,12 +569,13 @@ class OakDArUcoDetector:
                     if self.current_profile != "close":
                         self.apply_detection_profile("close")
                 
-                # Process the frame to detect ArUco markers
-                markers_frame, marker_corners, marker_ids = self.detect_aruco_markers(rgb_frame)
+                # Process the frame to detect ArUco markers - disable multi-scale detection to reduce lag
+                markers_frame, marker_corners, marker_ids = self.detect_aruco_markers(rgb_frame, simple_detection=True)
                 self.last_markers_frame = markers_frame
                 
-                # Update detection success rate
-                self.detection_success_rate.append(1.0 if marker_ids is not None and len(marker_ids) > 0 else 0.0)
+                # Update detection success rate - but don't actually use it for performance monitoring
+                if False:  # Disabled to prevent lag
+                    self.detection_success_rate.append(1.0 if marker_ids is not None and len(marker_ids) > 0 else 0.0)
                 
                 # Update marker trackers
                 current_time = time.time()
@@ -736,12 +737,19 @@ class OakDArUcoDetector:
             return in_spatial_data.getSpatialLocations()
         return []
         
-    def detect_aruco_markers(self, frame):
+    def detect_aruco_markers(self, frame, simple_detection=False):
         """
-        Detect ArUco markers and CharucoBoard in the frame using multi-scale approach
+        Detect ArUco markers and CharucoBoard in the frame
+        
+        Args:
+            frame: Input image
+            simple_detection: If True, use a simplified detection approach to reduce lag
         """
-        # Preprocess image
-        gray = self.preprocess_image(frame)
+        # Preprocess image - don't use CLAHE in simple mode (faster)
+        if simple_detection:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = self.preprocess_image(frame)
         
         # Detect ArUco markers
         corners, ids, rejected = cv2.aruco.detectMarkers(
@@ -750,10 +758,10 @@ class OakDArUcoDetector:
             parameters=self.aruco_params
         )
         
-        # Try to detect CharucoBoard (if we have enough markers)
+        # Try to detect CharucoBoard only if not in simple detection mode
         charuco_corners = None
         charuco_ids = None
-        if ids is not None and len(ids) >= 4:
+        if not simple_detection and ids is not None and len(ids) >= 4:
             # Check if this looks like a CharucoBoard pattern
             try:
                 # Create a CharucoBoard object for detection
@@ -786,44 +794,49 @@ class OakDArUcoDetector:
             except Exception as e:
                 print(f"Error detecting CharucoBoard: {e}")
         
-        # If no markers found and we're looking for distant markers, try with different parameters
-        if (ids is None or len(ids) == 0) and self.current_profile == "far":
-            # Try with enhanced parameters for distant detection
-            backup_params = self.aruco_params
-            try:
-                enhanced_params = cv2.aruco.DetectorParameters.create()
-                enhanced_params.adaptiveThreshConstant = 15
-                enhanced_params.minMarkerPerimeterRate = 0.02
-                enhanced_params.polygonalApproxAccuracyRate = 0.12
-                
-                corners, ids, rejected = cv2.aruco.detectMarkers(
-                    gray, 
-                    self.aruco_dict, 
-                    parameters=enhanced_params
-                )
-            except:
-                # Restore original parameters
-                self.aruco_params = backup_params
-        
-        # If still no markers found, try with a scaled version of the image
-        if ids is None or len(ids) == 0:
-            # Try with 75% scale
-            h, w = gray.shape
-            scaled_gray = cv2.resize(gray, (int(w*0.75), int(h*0.75)))
-            scaled_corners, scaled_ids, _ = cv2.aruco.detectMarkers(
-                scaled_gray, 
-                self.aruco_dict, 
-                parameters=self.aruco_params
-            )
+        # Skip multi-scale detection in simple mode to reduce lag
+        if simple_detection:
+            # Skip secondary detection methods
+            pass
+        else:
+            # If no markers found and we're looking for distant markers, try with different parameters
+            if (ids is None or len(ids) == 0) and self.current_profile == "far":
+                # Try with enhanced parameters for distant detection
+                backup_params = self.aruco_params
+                try:
+                    enhanced_params = cv2.aruco.DetectorParameters.create()
+                    enhanced_params.adaptiveThreshConstant = 15
+                    enhanced_params.minMarkerPerimeterRate = 0.02
+                    enhanced_params.polygonalApproxAccuracyRate = 0.12
+                    
+                    corners, ids, rejected = cv2.aruco.detectMarkers(
+                        gray, 
+                        self.aruco_dict, 
+                        parameters=enhanced_params
+                    )
+                except:
+                    # Restore original parameters
+                    self.aruco_params = backup_params
             
-            # If markers found in scaled image, convert coordinates back to original scale
-            if scaled_ids is not None and len(scaled_ids) > 0:
-                scale_factor = 1/0.75
-                for i in range(len(scaled_corners)):
-                    scaled_corners[i][0][:, 0] *= scale_factor
-                    scaled_corners[i][0][:, 1] *= scale_factor
-                corners = scaled_corners
-                ids = scaled_ids
+            # If still no markers found, try with a scaled version of the image
+            if ids is None or len(ids) == 0:
+                # Try with 75% scale
+                h, w = gray.shape
+                scaled_gray = cv2.resize(gray, (int(w*0.75), int(h*0.75)))
+                scaled_corners, scaled_ids, _ = cv2.aruco.detectMarkers(
+                    scaled_gray, 
+                    self.aruco_dict, 
+                    parameters=self.aruco_params
+                )
+                
+                # If markers found in scaled image, convert coordinates back to original scale
+                if scaled_ids is not None and len(scaled_ids) > 0:
+                    scale_factor = 1/0.75
+                    for i in range(len(scaled_corners)):
+                        scaled_corners[i][0][:, 0] *= scale_factor
+                        scaled_corners[i][0][:, 1] *= scale_factor
+                    corners = scaled_corners
+                    ids = scaled_ids
         
         # Draw detected markers on the frame
         markers_frame = frame.copy()
