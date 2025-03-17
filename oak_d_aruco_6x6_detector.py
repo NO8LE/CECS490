@@ -414,6 +414,12 @@ class OakDArUcoDetector:
             data = np.load(calib_file)
             self.camera_matrix = data['camera_matrix']
             self.dist_coeffs = data['dist_coeffs']
+            
+            # Check if this is a CharucoBoard calibration
+            if 'charuco_calibration' in data:
+                print("Detected CharucoBoard calibration data")
+                if 'squares_x' in data and 'squares_y' in data:
+                    print(f"CharucoBoard: {data['squares_x']}x{data['squares_y']} squares")
         else:
             # Use default calibration (will be less accurate)
             print("Using default camera calibration")
@@ -469,11 +475,14 @@ class OakDArUcoDetector:
         rgb_cam.setFps(30)
         
         # Set camera controls for better exposure in varying conditions
-        rgb_cam.initialControl.setAutoExposureEnable(True)
-        rgb_cam.initialControl.setAutoExposureLuminosityPriority(True)
-        rgb_cam.initialControl.setAutoExposureCompensation(0)
-        rgb_cam.initialControl.setAntiBandingMode(dai.CameraControl.AntiBandingMode.AUTO)
-        rgb_cam.initialControl.setAutoWhiteBalanceMode(dai.CameraControl.AutoWhiteBalanceMode.AUTO)
+        # Use method chaining pattern for camera controls
+        ctrl = dai.CameraControl()
+        ctrl.setAutoExposureEnable()  # No parameters needed
+        ctrl.setAutoExposureLuminosityPriority()  # No parameters needed 
+        ctrl.setAutoExposureCompensation(0)
+        ctrl.setAntiBandingMode(dai.CameraControl.AntiBandingMode.AUTO)
+        ctrl.setAutoWhiteBalanceMode(dai.CameraControl.AutoWhiteBalanceMode.AUTO)
+        rgb_cam.initialControl = ctrl
         
         # Use CAM_B and CAM_C instead of deprecated LEFT and RIGHT
         mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -732,7 +741,7 @@ class OakDArUcoDetector:
         
     def detect_aruco_markers(self, frame):
         """
-        Detect ArUco markers in the frame using multi-scale approach
+        Detect ArUco markers and CharucoBoard in the frame using multi-scale approach
         """
         # Preprocess image
         gray = self.preprocess_image(frame)
@@ -743,6 +752,42 @@ class OakDArUcoDetector:
             self.aruco_dict, 
             parameters=self.aruco_params
         )
+        
+        # Try to detect CharucoBoard (if we have enough markers)
+        charuco_corners = None
+        charuco_ids = None
+        if ids is not None and len(ids) >= 4:
+            # Check if this looks like a CharucoBoard pattern
+            try:
+                # Create a CharucoBoard object for detection
+                if hasattr(cv2.aruco, 'CharucoBoard_create'):
+                    # Old API
+                    charuco_board = cv2.aruco.CharucoBoard_create(
+                        squaresX=6, 
+                        squaresY=6, 
+                        squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
+                        markerLength=0.3048/6*0.75,  # Markers are 75% of square size
+                        dictionary=self.aruco_dict
+                    )
+                else:
+                    # New API
+                    charuco_board = cv2.aruco.CharucoBoard.create(
+                        squaresX=6, 
+                        squaresY=6, 
+                        squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
+                        markerLength=0.3048/6*0.75,  # Markers are 75% of square size
+                        dictionary=self.aruco_dict
+                    )
+                
+                # Interpolate the corners of the CharucoBoard
+                ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                    corners, ids, gray, charuco_board
+                )
+                
+                if ret and len(charuco_corners) > 4:
+                    print(f"Detected CharucoBoard with {len(charuco_corners)} corners")
+            except Exception as e:
+                print(f"Error detecting CharucoBoard: {e}")
         
         # If no markers found and we're looking for distant markers, try with different parameters
         if (ids is None or len(ids) == 0) and self.current_profile == "far":
@@ -788,7 +833,82 @@ class OakDArUcoDetector:
         if ids is not None and len(ids) > 0:
             cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
             
-            # Estimate pose of each marker
+            # If CharucoBoard corners were detected, draw them and estimate pose
+            if charuco_corners is not None and charuco_ids is not None and len(charuco_corners) > 4:
+                # Draw the Charuco corners
+                cv2.aruco.drawDetectedCornersCharuco(markers_frame, charuco_corners, charuco_ids)
+                
+                try:
+                    # Create a CharucoBoard object for pose estimation
+                    if hasattr(cv2.aruco, 'CharucoBoard_create'):
+                        # Old API
+                        charuco_board = cv2.aruco.CharucoBoard_create(
+                            squaresX=6, 
+                            squaresY=6, 
+                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
+                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
+                            dictionary=self.aruco_dict
+                        )
+                    else:
+                        # New API
+                        charuco_board = cv2.aruco.CharucoBoard.create(
+                            squaresX=6, 
+                            squaresY=6, 
+                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
+                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
+                            dictionary=self.aruco_dict
+                        )
+                    
+                    # Estimate the pose of the CharucoBoard
+                    retval, charuco_rvec, charuco_tvec = cv2.aruco.estimatePoseCharucoBoard(
+                        charucoCorners=charuco_corners,
+                        charucoIds=charuco_ids,
+                        board=charuco_board,
+                        cameraMatrix=self.camera_matrix,
+                        distCoeffs=self.dist_coeffs,
+                        rvec=None,
+                        tvec=None
+                    )
+                    
+                    if retval:
+                        # Draw the CharucoBoard axes
+                        cv2.aruco.drawAxis(
+                            markers_frame,
+                            self.camera_matrix,
+                            self.dist_coeffs,
+                            charuco_rvec,
+                            charuco_tvec,
+                            0.2  # Larger axis length for the board
+                        )
+                        
+                        # Calculate distance to CharucoBoard (from tvec)
+                        charuco_distance = np.linalg.norm(charuco_tvec) * 1000  # Convert to mm
+                        
+                        # Draw CharucoBoard distance info
+                        cv2.putText(
+                            markers_frame,
+                            f"ChArUco Distance: {charuco_distance/1000:.2f}m",
+                            (10, markers_frame.shape[0] - 40),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (255, 0, 255),  # Magenta
+                            2
+                        )
+                        
+                        # Add caption for ChArUco detection
+                        cv2.putText(
+                            markers_frame,
+                            "ChArUco Board Detected",
+                            (10, markers_frame.shape[0] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (255, 0, 255),  # Magenta
+                            2
+                        )
+                except Exception as e:
+                    print(f"Error estimating ChArUco board pose: {e}")
+            
+            # Estimate pose of each individual marker
             try:
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
                     corners, 

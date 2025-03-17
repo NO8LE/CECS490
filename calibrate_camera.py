@@ -694,7 +694,7 @@ class CameraCalibrator:
         if ret:
             # Save calibration data
             if self.drone_mode and len(self.frame_distances) > 0:
-                # Save with distance information for drone applications
+                # Save with distance information for drone applications and CharucoBoard parameters
                 np.savez(
                     CALIB_FILE,
                     camera_matrix=camera_matrix,
@@ -702,14 +702,24 @@ class CameraCalibrator:
                     drone_optimized=True,
                     min_distance=np.min(self.frame_distances),
                     max_distance=np.max(self.frame_distances),
-                    mean_distance=np.mean(self.frame_distances)
+                    mean_distance=np.mean(self.frame_distances),
+                    charuco_calibration=True,
+                    squares_x=self.squares_x,
+                    squares_y=self.squares_y,
+                    square_length=self.square_length,
+                    marker_length=self.marker_length
                 )
             else:
-                # Standard save
+                # Standard save with CharucoBoard parameters
                 np.savez(
                     CALIB_FILE,
                     camera_matrix=camera_matrix,
-                    dist_coeffs=dist_coeffs
+                    dist_coeffs=dist_coeffs,
+                    charuco_calibration=True,
+                    squares_x=self.squares_x,
+                    squares_y=self.squares_y,
+                    square_length=self.square_length,
+                    marker_length=self.marker_length
                 )
             
             print(f"Calibration successful! Data saved to {CALIB_FILE}")
