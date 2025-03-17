@@ -1021,12 +1021,23 @@ class OakDArUcoDetector:
             
             # Create rectangle - ensure it's valid
             rect = dai.Rect(self.roi_top_left, self.roi_bottom_right)
-            if rect.width() > 0 and rect.height() > 0:
+            
+            # Check if width/height are properties or methods (depends on DepthAI version)
+            try:
+                # Try as methods first
+                width = rect.width()
+                height = rect.height()
+            except:
+                # Fall back to properties if methods don't work
+                width = rect.width
+                height = rect.height
+            
+            if width > 0 and height > 0:
                 config.roi = rect
                 cfg.addROI(config)
                 self.spatial_calc_config_queue.send(cfg)
             else:
-                print(f"Invalid ROI dimensions: width={rect.width()}, height={rect.height()}")
+                print(f"Invalid ROI dimensions: width={width}, height={height}")
         except Exception as e:
             print(f"Error updating spatial calculator ROI: {e}")
         
