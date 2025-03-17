@@ -51,7 +51,7 @@ run_cmd "apt-add-repository restricted -y"
 run_cmd "apt-get install -y dkms git build-essential python3 python3-venv python3-pip cmake udev libusb-1.0-0-dev g++"
 run_cmd "apt-get install -y gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl"
 run_cmd "apt-get install -y libfuse2 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor-dev"
-run cmd "apt-get install -y freeglut3-dev libx11-devlibxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev   libglfw3-dev"
+run_cmd "apt-get install -y freeglut3-dev libx11-devlibxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev   libglfw3-dev"
 
 print_section "NVIDIA CUDA and OpenCV Setup"
 
