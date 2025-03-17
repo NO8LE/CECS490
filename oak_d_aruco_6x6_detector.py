@@ -478,7 +478,7 @@ class OakDArUcoDetector:
         # Use method chaining pattern for camera controls
         ctrl = dai.CameraControl()
         ctrl.setAutoExposureEnable()  # No parameters needed
-        ctrl.setAutoExposureLuminosityPriority()  # No parameters needed 
+        # Note: removed setAutoExposureLuminosityPriority() as it's not available in this DepthAI version
         ctrl.setAutoExposureCompensation(0)
         ctrl.setAntiBandingMode(dai.CameraControl.AntiBandingMode.AUTO)
         ctrl.setAutoWhiteBalanceMode(dai.CameraControl.AutoWhiteBalanceMode.AUTO)
