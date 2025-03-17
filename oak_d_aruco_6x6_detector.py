@@ -384,16 +384,20 @@ class OakDArUcoDetector:
         """
         Monitor and adapt processing based on performance
         """
+        # If we don't have enough data yet, return
         if len(self.frame_times) < 10:
             return
             
         # Calculate average processing time
         avg_time = sum(self.frame_times) / len(self.frame_times)
         
-        # Calculate detection success rate
-        success_rate = sum(self.detection_success_rate) / len(self.detection_success_rate)
-        
-        print(f"Avg processing time: {avg_time*1000:.1f}ms, Success rate: {success_rate*100:.1f}%")
+        # Calculate detection success rate (only if we have data)
+        if len(self.detection_success_rate) > 0:
+            success_rate = sum(self.detection_success_rate) / len(self.detection_success_rate)
+            print(f"Avg processing time: {avg_time*1000:.1f}ms, Success rate: {success_rate*100:.1f}%")
+        else:
+            # No detections yet
+            print(f"Avg processing time: {avg_time*1000:.1f}ms, No markers detected yet")
         
         # If processing is too slow, reduce resolution or simplify detection
         if avg_time > 0.1:  # More than 100ms per frame
@@ -644,8 +648,8 @@ class OakDArUcoDetector:
             frame_time = time.time() - start_time
             self.frame_times.append(frame_time)
             
-            # Periodically monitor performance
-            if len(self.frame_times) >= 30 and self.frame_count % 30 == 0:
+            # Periodically monitor performance, but only after we have enough frames
+            if self.frame_count >= 30 and self.frame_count % 30 == 0:
                 self.monitor_performance()
             
             # Check for key press
@@ -941,40 +945,6 @@ class OakDArUcoDetector:
         
         return markers_frame, corners, ids
         
-    def update_spatial_calc_roi(self, corners):
-        """
-        Update the ROI for spatial location calculation based on marker position
-        """
-        if len(corners) > 0:
-            # Calculate the center of the first detected marker
-            corner = corners[0]
-            center_x = np.mean([corner[0][0][0], corner[0][1][0], corner[0][2][0], corner[0][3][0]])
-            center_y = np.mean([corner[0][0][1], corner[0][1][1], corner[0][2][1], corner[0][3][1]])
-            
-            # Calculate ROI size based on estimated distance
-            # Smaller ROI for distant markers, larger for close ones
-            roi_size = max(0.03, min(0.1, 0.05 * (5000 / max(self.estimated_distance, 500))))
-            
-            # Calculate ROI around the marker center
-            roi_half_size = roi_size / 2
-            self.roi_top_left = dai.Point2f(
-                max(0, (center_x / 640) - roi_half_size),  # Normalize to 0-1 range
-                max(0, (center_y / 400) - roi_half_size)
-            )
-            self.roi_bottom_right = dai.Point2f(
-                min(1, (center_x / 640) + roi_half_size),
-                min(1, (center_y / 400) + roi_half_size)
-            )
-            
-            # Send updated config to the device
-            cfg = dai.SpatialLocationCalculatorConfig()
-            config = dai.SpatialLocationCalculatorConfigData()
-            config.depthThresholds.lowerThreshold = 100
-            config.depthThresholds.upperThreshold = 15000
-            config.roi = dai.Rect(self.roi_top_left, self.roi_bottom_right)
-            cfg.addROI(config)
-            self.spatial_calc_config_queue.send(cfg)
-            
     def update_spatial_calc_roi(self, corners, marker_ids=None):
         """
         Update the ROI for spatial location calculation based on marker position
