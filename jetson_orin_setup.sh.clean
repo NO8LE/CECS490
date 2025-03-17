@@ -51,7 +51,7 @@ run_cmd "apt-add-repository restricted -y"
 run_cmd "apt-get install -y dkms git build-essential python3 python3-venv python3-pip cmake udev libusb-1.0-0-dev g++"
 run_cmd "apt-get install -y gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl"
 run_cmd "apt-get install -y libfuse2 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor-dev"
-run_cmd "apt-get install -y freeglut3-dev libx11-devlibxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev   libglfw3-dev"
+run_cmd "apt-get install -y freeglut3-dev libxi-dev libglu1-mesa-dev libfreeimage-dev   libglfw3-dev"
 
 print_section "NVIDIA CUDA and OpenCV Setup"
 
@@ -60,7 +60,7 @@ run_cmd "cd; wget https://developer.download.nvidia.com/compute/cuda/repos/$dist
 run_cmd "wget https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/cuda-archive-keyring.gpg"
 run_cmd "mv cuda-archive-keyring.gpg /usr/share/keyrings/cuda-archive-keyring.gpg"
 run_cmd "echo 'deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/ /' | tee /etc/apt/sources.list.d/cuda-$distro-$arch.list"
-run_cmd "apt-get update && apt-get install -y cuda-compat-12-8 cuda-toolkit nvidia-gds nvidia-open nvidia-drivers"
+run_cmd "apt-get update && apt-get install -y cuda-compat-12-8 cuda-toolkit nvidia-gds"
 
 # Add pause to allow user to break and reboot if needed
 echo "[INFO] CUDA toolkit installed. Press Ctrl+C within 10 seconds to abort and reboot if needed."
@@ -68,7 +68,8 @@ sleep 10
 echo "[INFO] Continuing with setup..."
 
 run_cmd "ln -s /usr/local/cuda-12.8 /usr/local/cuda"
-run cmd "echo \"export PATH='/usr/local/cuda:$PATH'\""
+run cmd "echo \"export PATH='/usr/local/cuda:$PATH'\" >> ${HOME}/.bashrc"
+run_cmd "source ${HOME}/.bashrc"
 
 # Install dependencies required for OpenCV
 run_cmd "apt-get install -y libavcodec-dev libavformat-dev libswscale-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgtk-3-dev"
