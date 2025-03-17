@@ -969,29 +969,66 @@ class OakDArUcoDetector:
         center_x = np.mean([corner[0][0][0], corner[0][1][0], corner[0][2][0], corner[0][3][0]])
         center_y = np.mean([corner[0][0][1], corner[0][1][1], corner[0][2][1], corner[0][3][1]])
         
-        # Calculate ROI size based on estimated distance
-        # Smaller ROI for distant markers, larger for close ones
-        roi_size = max(0.03, min(0.1, 0.05 * (5000 / max(self.estimated_distance, 500))))
+        # Get frame dimensions from initial resolution
+        if self.resolution_mode == "adaptive":
+            frame_width, frame_height = RESOLUTION_PROFILES["medium"]
+        else:
+            frame_width, frame_height = RESOLUTION_PROFILES[self.resolution_mode]
         
-        # Calculate ROI around the marker center
-        roi_half_size = roi_size / 2
+        # Use fixed ROI size in pixels (more stable than distance-based)
+        roi_width_pixels = 100
+        roi_height_pixels = 100
+        
+        # Convert to normalized coordinates (0-1 range)
+        roi_width = roi_width_pixels / frame_width
+        roi_height = roi_height_pixels / frame_height
+        
+        # Calculate ROI around the marker center with bounds check
+        # Ensure ROI is fully within bounds and not too close to edges
+        x_normalized = max(roi_width/2, min(1.0 - roi_width/2, center_x / frame_width))
+        y_normalized = max(roi_height/2, min(1.0 - roi_height/2, center_y / frame_height))
+        
+        # Apply exponential smoothing to ROI position if we had a previous position
+        if hasattr(self, 'prev_roi_x') and hasattr(self, 'prev_roi_y'):
+            # Smoothing factor (0-1), lower value = more smoothing
+            alpha = 0.3
+            x_normalized = alpha * x_normalized + (1 - alpha) * self.prev_roi_x
+            y_normalized = alpha * y_normalized + (1 - alpha) * self.prev_roi_y
+        
+        # Store for next frame
+        self.prev_roi_x = x_normalized
+        self.prev_roi_y = y_normalized
+        
+        # Calculate ROI coordinates with safety margins
         self.roi_top_left = dai.Point2f(
-            max(0, (center_x / 640) - roi_half_size),  # Normalize to 0-1 range
-            max(0, (center_y / 400) - roi_half_size)
+            max(0.001, x_normalized - roi_width/2),
+            max(0.001, y_normalized - roi_height/2)
         )
         self.roi_bottom_right = dai.Point2f(
-            min(1, (center_x / 640) + roi_half_size),
-            min(1, (center_y / 400) + roi_half_size)
+            min(0.999, x_normalized + roi_width/2),
+            min(0.999, y_normalized + roi_height/2)
         )
         
-        # Send updated config to the device
-        cfg = dai.SpatialLocationCalculatorConfig()
-        config = dai.SpatialLocationCalculatorConfigData()
-        config.depthThresholds.lowerThreshold = 100
-        config.depthThresholds.upperThreshold = 15000
-        config.roi = dai.Rect(self.roi_top_left, self.roi_bottom_right)
-        cfg.addROI(config)
-        self.spatial_calc_config_queue.send(cfg)
+        # Print ROI info for debugging
+        print(f"ROI: ({self.roi_top_left.x:.3f}, {self.roi_top_left.y:.3f}) to ({self.roi_bottom_right.x:.3f}, {self.roi_bottom_right.y:.3f})")
+        
+        try:
+            # Send updated config to the device
+            cfg = dai.SpatialLocationCalculatorConfig()
+            config = dai.SpatialLocationCalculatorConfigData()
+            config.depthThresholds.lowerThreshold = 100
+            config.depthThresholds.upperThreshold = 15000
+            
+            # Create rectangle - ensure it's valid
+            rect = dai.Rect(self.roi_top_left, self.roi_bottom_right)
+            if rect.width() > 0 and rect.height() > 0:
+                config.roi = rect
+                cfg.addROI(config)
+                self.spatial_calc_config_queue.send(cfg)
+            else:
+                print(f"Invalid ROI dimensions: width={rect.width()}, height={rect.height()}")
+        except Exception as e:
+            print(f"Error updating spatial calculator ROI: {e}")
         
         # If this is the target marker, store its information
         if target_index is not None:
