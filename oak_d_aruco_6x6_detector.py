@@ -474,15 +474,8 @@ class OakDArUcoDetector:
         rgb_cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         rgb_cam.setFps(30)
         
-        # Set camera controls for better exposure in varying conditions
-        # Use method chaining pattern for camera controls
-        ctrl = dai.CameraControl()
-        ctrl.setAutoExposureEnable()  # No parameters needed
-        # Note: removed setAutoExposureLuminosityPriority() as it's not available in this DepthAI version
-        ctrl.setAutoExposureCompensation(0)
-        ctrl.setAntiBandingMode(dai.CameraControl.AntiBandingMode.AUTO)
-        ctrl.setAutoWhiteBalanceMode(dai.CameraControl.AutoWhiteBalanceMode.AUTO)
-        rgb_cam.initialControl = ctrl
+        # Note: Camera control initialization removed due to compatibility issues with DepthAI 2.24.0.0
+        # The camera will use default auto-exposure settings
         
         # Use CAM_B and CAM_C instead of deprecated LEFT and RIGHT
         mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
