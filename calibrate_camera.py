@@ -440,8 +440,8 @@ class CameraCalibrator:
                 print(f"Error interpolating corners: {str(e)}")
                 ret = False
             
-            # If CharucoBoard corners are detected and enough time has passed
-            if ret and len(charuco_corners) > 4 and (time.time() - self.last_capture_time) > FRAME_INTERVAL:
+            # If CharucoBoard corners are detected, enough time has passed, and we have at least 6 corners
+            if ret and charuco_corners is not None and len(charuco_corners) >= 6 and (time.time() - self.last_capture_time) > FRAME_INTERVAL:
                 # Draw CharucoBoard corners
                 cv2.aruco.drawDetectedCornersCharuco(display_frame, charuco_corners, charuco_ids)
                 
@@ -493,23 +493,47 @@ class CameraCalibrator:
             else:
                 # Display status
                 if ret:
-                    cv2.putText(
-                        display_frame,
-                        "CharucoBoard detected! Hold still...",
-                        (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 255),
-                        2
-                    )
+                    # Show how many corners were detected and how many are needed
+                    if charuco_corners is not None:
+                        corners_count = len(charuco_corners)
+                        if corners_count < 6:
+                            cv2.putText(
+                                display_frame,
+                                f"Need more corners! Detected: {corners_count}/6 required",
+                                (20, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.7,
+                                (0, 100, 255),  # Orange
+                                2
+                            )
+                        else:
+                            cv2.putText(
+                                display_frame,
+                                f"CharucoBoard detected with {corners_count} corners! Hold still...",
+                                (20, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.7,
+                                (0, 255, 255),  # Yellow
+                                2
+                            )
+                    else:
+                        cv2.putText(
+                            display_frame,
+                            "CharucoBoard detected but corners not found",
+                            (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7,
+                            (0, 255, 255),
+                            2
+                        )
                 else:
                     cv2.putText(
                         display_frame,
-                        "Not enough markers detected",
+                        "Not enough markers detected for CharucoBoard",
                         (20, 40),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
-                        (0, 255, 255),
+                        (0, 0, 255),  # Red
                         2
                     )
         else:
@@ -656,10 +680,27 @@ class CameraCalibrator:
         corners_all = []
         ids_all = []
         
-        # Combine all detected corners and IDs
+        # Combine all detected corners and IDs, filtering out frames with too few corners
+        valid_frames = 0
         for corners, ids in zip(self.all_charuco_corners, self.all_charuco_ids):
-            corners_all.append(corners)
-            ids_all.append(ids)
+            if len(corners) >= 6:  # Ensure minimum of 6 corners for DLT algorithm
+                corners_all.append(corners)
+                ids_all.append(ids)
+                valid_frames += 1
+            else:
+                print(f"Skipping a frame with only {len(corners)} corners (minimum 6 required)")
+        
+        print(f"Using {valid_frames} valid frames for calibration (each with 6+ corners)")
+        
+        # Check if we have enough valid frames
+        if valid_frames < 4:  # Need at least 4 frames for a good calibration
+            print("Not enough valid frames with 6+ corners. Please recapture with a clearer view of the CharucoBoard.")
+            print("Tips for better calibration:")
+            print("- Ensure good, even lighting on the board")
+            print("- Avoid motion blur by holding the camera steady")
+            print("- Make sure most of the board is visible in each frame")
+            print("- Try different angles and distances")
+            return
         
         # Perform calibration
         try:
