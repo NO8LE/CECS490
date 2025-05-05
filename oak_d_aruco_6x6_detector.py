@@ -33,6 +33,16 @@ from scipy.spatial.transform import Rotation as R
 from collections import deque
 import threading
 
+# Import PyMAVLink
+try:
+    from pymavlink import mavutil
+    print("PyMAVLink successfully imported")
+except ImportError:
+    print("Warning: PyMAVLink not found. MAVLink functionality will be disabled.")
+    print("To enable MAVLink servo control, install pymavlink:")
+    print("  pip install pymavlink")
+    mavutil = None
+
 # Import OpenCV
 try:
     import cv2
@@ -237,7 +247,8 @@ class MarkerTracker:
         return (timestamp - self.last_seen) < 1.0  # Valid for 1 second
 
 class OakDArUcoDetector:
-    def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False):
+    def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False, 
+                 mavlink_connection=None, enable_servo_control=False):
         # Target marker ID to highlight
         self.target_id = target_id
         if self.target_id is not None:
@@ -256,6 +267,28 @@ class OakDArUcoDetector:
         self.high_performance = high_performance
         if self.high_performance:
             self.set_power_mode(True)
+            
+        # MAVLink settings
+        self.mavlink_connection = mavlink_connection
+        self.enable_servo_control = enable_servo_control
+        self.mav_connection = None
+        
+        # Initialize MAVLink connection if requested
+        if self.enable_servo_control:
+            self.setup_mavlink_connection()
+            
+        # PWM servo values
+        self.servo_channels = {
+            "top_left": 9,     # Channel for top-left corner servo
+            "top_right": 10,   # Channel for top-right corner servo
+            "bottom_right": 11, # Channel for bottom-right corner servo
+            "bottom_left": 12   # Channel for bottom-left corner servo
+        }
+        # Default PWM values (mid position)
+        self.default_pwm = 1500
+        # PWM limits
+        self.min_pwm = 1000
+        self.max_pwm = 2000
             
         # Initialize ArUco detector using the method that worked during initialization
         if dictionary_method == "old":
@@ -516,6 +549,143 @@ class OakDArUcoDetector:
         spatial_calc.passthroughDepth.link(xout_depth.input)
         xin_spatial_calc_config.out.link(spatial_calc.inputConfig)
         
+    def setup_mavlink_connection(self):
+        """
+        Initialize the MAVLink connection for servo control
+        """
+        if mavutil is None:
+            print("PyMAVLink not available. Servo control disabled.")
+            return
+            
+        if not self.mavlink_connection:
+            print("No MAVLink connection string provided. Servo control disabled.")
+            return
+            
+        try:
+            print(f"Connecting to MAVLink device at {self.mavlink_connection}")
+            self.mav_connection = mavutil.mavlink_connection(self.mavlink_connection)
+            
+            # Wait for the first heartbeat to ensure connection is established
+            print("Waiting for MAVLink heartbeat...")
+            self.mav_connection.wait_heartbeat()
+            print(f"MAVLink heartbeat received from system {self.mav_connection.target_system}")
+            
+            # Set the system and component ID for sending commands
+            self.target_system = self.mav_connection.target_system
+            self.target_component = self.mav_connection.target_component
+            
+            print("MAVLink connection established successfully")
+        except Exception as e:
+            print(f"Error setting up MAVLink connection: {e}")
+            self.mav_connection = None
+            self.enable_servo_control = False
+            
+    def send_servo_command(self, channel, pwm_value):
+        """
+        Send a servo command via MAVLink
+        
+        Args:
+            channel: Servo channel number (1-16)
+            pwm_value: PWM value (typically 1000-2000)
+        """
+        if not self.enable_servo_control or self.mav_connection is None:
+            return
+            
+        try:
+            # Ensure PWM value is within valid range
+            pwm_value = max(self.min_pwm, min(self.max_pwm, int(pwm_value)))
+            
+            # Send command using DO_SET_SERVO
+            self.mav_connection.mav.command_long_send(
+                self.target_system,
+                self.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_SERVO,
+                0,  # Confirmation
+                channel,  # Servo channel
+                pwm_value,  # PWM value
+                0, 0, 0, 0, 0  # Unused parameters
+            )
+            print(f"Sent servo command to channel {channel}: PWM={pwm_value}")
+        except Exception as e:
+            print(f"Error sending servo command: {e}")
+    
+    def calculate_corner_pwm(self, corners):
+        """
+        Calculate PWM values for servos based on marker corner positions
+        
+        Args:
+            corners: Array of marker corner coordinates
+        
+        Returns:
+            Dictionary of channel:pwm_value pairs
+        """
+        # Check if we have valid corners
+        if corners is None or len(corners) < 4:
+            return {}
+            
+        # Get frame center and dimensions
+        h, w = self.last_markers_frame.shape[:2] if hasattr(self, 'last_markers_frame') else (720, 1280)
+        center_x, center_y = w/2, h/2
+        
+        # Calculate PWM values based on corner positions relative to center
+        # The idea is to map screen position to servo angle
+        
+        # Extract the four corners (assuming they are in a specific order)
+        top_left = corners[0]
+        top_right = corners[1]
+        bottom_right = corners[2]
+        bottom_left = corners[3]
+        
+        # Calculate offsets from center (normalized to -1 to 1)
+        tl_offset_x = (top_left[0] - center_x) / (w/2)
+        tl_offset_y = (top_left[1] - center_y) / (h/2)
+        
+        tr_offset_x = (top_right[0] - center_x) / (w/2)
+        tr_offset_y = (top_right[1] - center_y) / (h/2)
+        
+        br_offset_x = (bottom_right[0] - center_x) / (w/2)
+        br_offset_y = (bottom_right[1] - center_y) / (h/2)
+        
+        bl_offset_x = (bottom_left[0] - center_x) / (w/2)
+        bl_offset_y = (bottom_left[1] - center_y) / (h/2)
+        
+        # Convert offsets to PWM values (1000-2000 range with 1500 as center)
+        # Use a combination of x and y offsets to determine servo position
+        top_left_pwm = int(self.default_pwm + 500 * (tl_offset_x - tl_offset_y))
+        top_right_pwm = int(self.default_pwm + 500 * (tr_offset_x + tr_offset_y))
+        bottom_right_pwm = int(self.default_pwm + 500 * (br_offset_x - br_offset_y))
+        bottom_left_pwm = int(self.default_pwm + 500 * (bl_offset_x + bl_offset_y))
+        
+        # Ensure values are within limits
+        top_left_pwm = max(self.min_pwm, min(self.max_pwm, top_left_pwm))
+        top_right_pwm = max(self.min_pwm, min(self.max_pwm, top_right_pwm))
+        bottom_right_pwm = max(self.min_pwm, min(self.max_pwm, bottom_right_pwm))
+        bottom_left_pwm = max(self.min_pwm, min(self.max_pwm, bottom_left_pwm))
+        
+        return {
+            self.servo_channels["top_left"]: top_left_pwm,
+            self.servo_channels["top_right"]: top_right_pwm,
+            self.servo_channels["bottom_right"]: bottom_right_pwm,
+            self.servo_channels["bottom_left"]: bottom_left_pwm
+        }
+        
+    def control_servos_from_target(self):
+        """
+        Control servos based on target marker corners
+        """
+        if not self.enable_servo_control or self.mav_connection is None:
+            return
+            
+        if not hasattr(self, 'target_corners') or self.target_corners is None:
+            return
+            
+        # Calculate PWM values from corner positions
+        pwm_values = self.calculate_corner_pwm(self.target_corners)
+        
+        # Send servo commands
+        for channel, pwm in pwm_values.items():
+            self.send_servo_command(channel, pwm)
+
     def start(self):
         """
         Start the OAK-D camera and process frames
@@ -1280,6 +1450,10 @@ class OakDArUcoDetector:
                     (0, 255, 0),
                     2
                 )
+            
+            # Send servo commands if servo control is enabled
+            if self.enable_servo_control and self.mav_connection is not None:
+                self.control_servos_from_target()
 
 def main():
     """
@@ -1292,6 +1466,8 @@ def main():
                       default='adaptive', help='Resolution mode (default: adaptive)')
     parser.add_argument('--cuda', '-c', action='store_true', help='Enable CUDA acceleration if available')
     parser.add_argument('--performance', '-p', action='store_true', help='Enable high performance mode on Jetson')
+    parser.add_argument('--mavlink', '-m', type=str, help='MAVLink connection string (e.g., udp:localhost:14550)')
+    parser.add_argument('--servo-control', '-s', action='store_true', help='Enable servo control via MAVLink')
     args = parser.parse_args()
     
     print("Initializing OAK-D ArUco 6x6 Marker Detector for Drone Applications...")
@@ -1299,7 +1475,9 @@ def main():
         target_id=args.target,
         resolution=args.resolution,
         use_cuda=args.cuda,
-        high_performance=args.performance
+        high_performance=args.performance,
+        mavlink_connection=args.mavlink,
+        enable_servo_control=args.servo_control
     )
     detector.start()
 
