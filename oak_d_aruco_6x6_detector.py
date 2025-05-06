@@ -19,12 +19,15 @@ Options:
   --stream-ip IP               IP address to stream to (default: 192.168.2.1)
   --stream-port PORT           Port to stream to (default: 5000)
   --stream-bitrate BITRATE     Streaming bitrate in bits/sec (default: 4000000)
+  --headless                   Run in headless mode (no GUI windows)
+  --quiet, -q                  Suppress progress messages in the console
 
 Examples:
   python3 oak_d_aruco_6x6_detector.py
   python3 oak_d_aruco_6x6_detector.py --target 5
   python3 oak_d_aruco_6x6_detector.py -t 10 -r high -c -p
   python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.2.1
+  python3 oak_d_aruco_6x6_detector.py --headless --quiet --stream
 
 Press 'q' to exit the program.
 """
@@ -255,7 +258,7 @@ class OakDArUcoDetector:
     def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False,
                  mavlink_connection=None, enable_servo_control=False, enable_streaming=False,
                  stream_ip="192.168.2.1", stream_port=5000, stream_bitrate=4000000,
-                 headless=False):
+                 headless=False, quiet=False):
         # Target marker ID to highlight
         self.target_id = target_id
         if self.target_id is not None:
@@ -279,6 +282,11 @@ class OakDArUcoDetector:
         self.headless = headless
         if self.headless:
             print("Running in headless mode (no GUI windows)")
+            
+        # Quiet mode (suppress progress messages)
+        self.quiet = quiet
+        if self.quiet:
+            print("Running in quiet mode (suppressing progress messages)")
             
         # MAVLink settings
         self.mavlink_connection = mavlink_connection
@@ -453,17 +461,19 @@ class OakDArUcoDetector:
         avg_time = sum(self.frame_times) / len(self.frame_times)
         
         # Calculate detection success rate (only if we have data)
-        if len(self.detection_success_rate) > 0:
-            success_rate = sum(self.detection_success_rate) / len(self.detection_success_rate)
-            print(f"Avg processing time: {avg_time*1000:.1f}ms, Success rate: {success_rate*100:.1f}%")
-        else:
-            # No detections yet
-            print(f"Avg processing time: {avg_time*1000:.1f}ms, No markers detected yet")
+        if not self.quiet:
+            if len(self.detection_success_rate) > 0:
+                success_rate = sum(self.detection_success_rate) / len(self.detection_success_rate)
+                print(f"Avg processing time: {avg_time*1000:.1f}ms, Success rate: {success_rate*100:.1f}%")
+            else:
+                # No detections yet
+                print(f"Avg processing time: {avg_time*1000:.1f}ms, No markers detected yet")
         
         # If processing is too slow, reduce resolution or simplify detection
         if avg_time > 0.1:  # More than 100ms per frame
             self.skip_frames = 1  # Process every other frame
-            print("Performance warning: Processing time > 100ms, skipping frames")
+            if not self.quiet:
+                print("Performance warning: Processing time > 100ms, skipping frames")
         else:
             self.skip_frames = 0  # Process every frame
         
@@ -724,41 +734,112 @@ class OakDArUcoDetector:
                 width, height = RESOLUTION_PROFILES["medium"]
             else:
                 width, height = RESOLUTION_PROFILES[self.resolution_mode]
+            
+            # List of pipeline configurations to try in order (from most to least complex)
+            pipeline_options = [
+                # Option 1: Standard x264enc with optimized parameters
+                (f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
+                 f"x264enc bitrate={int(self.stream_bitrate/1000)} speed-preset=ultrafast tune=zerolatency ! "
+                 f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"),
                 
-            # Construct the GStreamer pipeline string
-            # Using software-based encoder (x264enc) instead of NVENC hardware encoder
-            gst_pipeline = (
-                f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
-                f"x264enc bitrate={int(self.stream_bitrate/1000)} speed-preset=ultrafast tune=zerolatency ! "
-                f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"
-            )
+                # Option 2: x264enc with minimal parameters
+                (f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
+                 f"x264enc bitrate={int(self.stream_bitrate/1000)} ! "
+                 f"rtph264pay ! udpsink host={self.stream_ip} port={self.stream_port}"),
+                
+                # Option 3: Try with openh264enc instead
+                (f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
+                 f"openh264enc bitrate={int(self.stream_bitrate/1000)} ! "
+                 f"rtph264pay ! udpsink host={self.stream_ip} port={self.stream_port}"),
+                
+                # Option 4: Alternative x264enc pipeline structure
+                (f"appsrc ! videoconvert ! video/x-raw,format=I420 ! "
+                 f"x264enc bitrate={int(self.stream_bitrate/1000)} ! "
+                 f"rtph264pay ! udpsink host={self.stream_ip} port={self.stream_port}"),
+                
+                # Option 5: JPEG encoding (lower quality but higher compatibility)
+                (f"appsrc ! videoconvert ! jpegenc ! "
+                 f"rtpjpegpay ! udpsink host={self.stream_ip} port={self.stream_port}"),
+                
+                # Option 6: Jetson-specific pipeline (uses omxh264enc if available)
+                (f"appsrc ! videoconvert ! omxh264enc bitrate={int(self.stream_bitrate/1000)} ! "
+                 f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"),
+                 
+                # Option 7: Fallback v4l2 hardware encoder (for Jetson/SBCs)
+                (f"appsrc ! videoconvert ! v4l2h264enc ! "
+                 f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"),
+                 
+                # Option 8: Simplest pipeline, raw video (high bandwidth but maximum compatibility)
+                (f"appsrc ! videoconvert ! rtpvrawpay ! udpsink host={self.stream_ip} port={self.stream_port}")
+            ]
             
-            # Initialize the VideoWriter with GStreamer pipeline
-            self.video_writer = cv2.VideoWriter(
-                gst_pipeline,
-                cv2.CAP_GSTREAMER,
-                0,  # Codec is ignored when using GStreamer
-                30.0,  # Target 30 FPS
-                (width, height)
-            )
+            # First, check if required GStreamer elements are available
+            if not self.quiet:
+                print("Checking available GStreamer encoders...")
+                os.system("gst-inspect-1.0 x264enc >/dev/null 2>&1 || echo 'x264enc not available'")
+                os.system("gst-inspect-1.0 openh264enc >/dev/null 2>&1 || echo 'openh264enc not available'")
+                os.system("gst-inspect-1.0 omxh264enc >/dev/null 2>&1 || echo 'omxh264enc not available'")
+                os.system("gst-inspect-1.0 v4l2h264enc >/dev/null 2>&1 || echo 'v4l2h264enc not available'")
             
-            # Check if VideoWriter was successfully initialized
-            if not self.video_writer.isOpened():
+            # Try each pipeline option until one works
+            self.video_writer = None
+            for i, pipeline in enumerate(pipeline_options):
+                try:
+                    if not self.quiet:
+                        print(f"Trying pipeline option {i+1}...")
+                    
+                    # Initialize the VideoWriter with the current GStreamer pipeline
+                    writer = cv2.VideoWriter(
+                        pipeline,
+                        cv2.CAP_GSTREAMER,
+                        0,  # Codec is ignored when using GStreamer
+                        30.0,  # Target 30 FPS
+                        (width, height)
+                    )
+                    
+                    # Check if VideoWriter was successfully initialized
+                    if writer.isOpened():
+                        self.video_writer = writer
+                        if not self.quiet:
+                            print(f"Success! Using pipeline option {i+1}")
+                        break
+                    else:
+                        if not self.quiet:
+                            print(f"Pipeline option {i+1} failed")
+                except Exception as e:
+                    if not self.quiet:
+                        print(f"Error with pipeline option {i+1}: {e}")
+            
+            # Check if any pipeline option worked
+            if self.video_writer is None or not self.video_writer.isOpened():
                 print("Failed to open video writer pipeline. Streaming will be disabled.")
-                print("Make sure GStreamer is properly installed with x264 encoder support.")
+                print("Make sure GStreamer is properly installed with encoder support.")
+                
+                # Detailed diagnostics
+                print("\nDiagnostic information:")
+                print("Available GStreamer plugins on your system:")
+                os.system("gst-inspect-1.0 | grep -E 'x264|h264|enc|jpegenc|v4l2' 2>&1")
+                print("\nChecking GStreamer installation:")
+                os.system("which gst-launch-1.0 2>&1 || echo 'GStreamer not found in PATH'")
+                print("\nGStreamer version:")
+                os.system("gst-launch-1.0 --version 2>&1 || echo 'Cannot determine GStreamer version'")
+                print("\nIf you need to install GStreamer plugins:")
+                print("sudo apt-get install gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly")
+                
                 self.enable_streaming = False
                 self.video_writer = None
             else:
-                print("Video streaming pipeline initialized successfully")
-                print(f"Streaming {width}x{height} @ 30fps to {self.stream_ip}:{self.stream_port}")
-                
-                # Print SDP information for client playback
-                print("\nTo play the stream on the client (GCS), create a file named stream.sdp with these contents:")
-                print("c=IN IP4 0.0.0.0")
-                print(f"m=video {self.stream_port} RTP/AVP 96")
-                print("a=rtpmap:96 H264/90000")
-                print("\nThen use VLC to open this file, or use ffplay with:")
-                print(f"ffplay -fflags nobuffer -flags low_delay -framedrop -strict experimental \"udp://@:{self.stream_port}?buffer_size=120000\"")
+                if not self.quiet:
+                    print("Video streaming pipeline initialized successfully")
+                    print(f"Streaming {width}x{height} @ 30fps to {self.stream_ip}:{self.stream_port}")
+                    
+                    # Print SDP information for client playback
+                    print("\nTo play the stream on the client (GCS), create a file named stream.sdp with these contents:")
+                    print("c=IN IP4 0.0.0.0")
+                    print(f"m=video {self.stream_port} RTP/AVP 96")
+                    print("a=rtpmap:96 H264/90000")
+                    print("\nThen use VLC to open this file, or use ffplay with:")
+                    print(f"ffplay -fflags nobuffer -flags low_delay -framedrop -strict experimental \"udp://@:{self.stream_port}?buffer_size=120000\"")
                 
         except Exception as e:
             print(f"Error initializing video streaming: {e}")
@@ -1573,6 +1654,7 @@ def main():
     parser.add_argument('--stream-port', type=int, default=5000, help='Port to stream to (default: 5000)')
     parser.add_argument('--stream-bitrate', type=int, default=4000000, help='Streaming bitrate in bits/sec (default: 4000000)')
     parser.add_argument('--headless', action='store_true', help='Run in headless mode (no GUI windows)')
+    parser.add_argument('--quiet', '-q', action='store_true', help='Suppress progress messages in the console')
     args = parser.parse_args()
     
     print("Initializing OAK-D ArUco 6x6 Marker Detector for Drone Applications...")
@@ -1587,7 +1669,8 @@ def main():
         stream_ip=args.stream_ip,
         stream_port=args.stream_port,
         stream_bitrate=args.stream_bitrate,
-        headless=args.headless
+        headless=args.headless,
+        quiet=args.quiet
     )
     detector.start()
 
