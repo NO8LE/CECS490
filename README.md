@@ -120,9 +120,10 @@ Options:
 - `--cuda, -c`: Enable CUDA acceleration if available
 - `--performance, -p`: Enable high performance mode on Jetson
 - `--stream, -st`: Enable video streaming over RTP/UDP
-- `--stream-ip IP`: IP address to stream to (default: 192.168.251.105)
+- `--stream-ip IP`: IP address to stream to (default: 192.168.2.1)
 - `--stream-port PORT`: Port to stream to (default: 5000)
 - `--stream-bitrate BITRATE`: Streaming bitrate in bits/sec (default: 4000000)
+- `--headless`: Run in headless mode (no GUI windows, for SSH sessions)
 
 For targeting a specific marker:
 ```bash
@@ -132,9 +133,42 @@ This will prioritize marker ID 5, providing visual guidance to center on it.
 
 For streaming video to the GCS:
 ```bash
-python3 oak_d_aruco_6x6_detector.py --stream
+python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.2.1
 ```
-This will stream the annotated video feed from the Jetson (192.168.251.245) to the GCS (192.168.251.105).
+This will stream the annotated video feed from the Jetson to the GCS.
+
+For headless operation over SSH (without X11 forwarding):
+```bash
+python3 oak_d_aruco_6x6_detector.py --headless
+```
+This will run without attempting to create GUI windows, preventing crashes on SSH sessions.
+
+For headless operation with streaming (common for drone deployments):
+```bash
+python3 oak_d_aruco_6x6_detector.py --headless --stream --stream-ip 192.168.2.1
+```
+This allows you to run the script over SSH and still view the processed video on another machine.
+
+## SSH and Headless Operation
+
+When connecting to the Jetson over SSH, you need to use the `--headless` flag to prevent the script from attempting to create GUI windows, which would cause crashes in environments without a display server:
+
+```bash
+# Run the detector headlessly over SSH
+python3 oak_d_aruco_6x6_detector.py --headless
+
+# For convenience, use the start_streaming.sh helper script
+./video_streaming/start_streaming.sh --headless
+```
+
+The `--headless` flag disables all GUI operations (cv2.imshow/waitKey) but still processes frames and performs marker detection. When combined with the `--stream` flag, you can view the processed video on another machine:
+
+```bash
+# Run headlessly but still view the results via streaming
+python3 oak_d_aruco_6x6_detector.py --headless --stream --stream-ip 192.168.2.1
+```
+
+**Note:** The `--headless` and `--stream` flags serve different purposes and need to be specified separately if you want both behaviors.
 
 ## Performance Optimization
 
@@ -290,17 +324,17 @@ This functionality is particularly useful for drone navigation and autonomous ta
 
 ## Video Streaming
 
-The system now supports real-time video streaming from the Jetson to a Ground Control Station (GCS) over Wi-Fi:
+The system supports real-time video streaming from the Jetson to a Ground Control Station (GCS) over Wi-Fi:
 
-- **H.264 encoding**: Uses NVIDIA hardware acceleration (NVENC) for efficient encoding
-- **RTP over UDP**: Low-latency transport protocol suitable for real-time applications
+- **H.264 encoding**: Uses software-based x264 encoding (compatible with all systems)
+- **RTP over UDP**: Low-latency transport protocol suitable for real-time applications 
 - **Up to 30 FPS**: Configurable frame rate with adaptive quality
 - **Multiple viewing options**: Support for VLC, ffplay, or custom OpenCV-based viewer
 
 To enable streaming:
 
 ```bash
-python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.251.105
+python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.2.1
 ```
 
 On the GCS side, you can view the stream using the included receiver:
@@ -312,13 +346,13 @@ python3 gcs_video_receiver.py
 ### Network Configuration
 
 The system is configured for the following network setup:
-- Jetson (UAV): 192.168.251.245
-- GCS: 192.168.251.105
+- Jetson (UAV): 192.168.2.2
+- GCS: 192.168.2.1
 
 A network configuration check script is provided to verify connectivity:
 
 ```bash
-./check_network_config.sh --ip 192.168.251.105
+./check_network_config.sh --ip 192.168.2.1
 ```
 
 For detailed instructions on setting up and using the video streaming functionality, see [VIDEO_STREAMING.md](VIDEO_STREAMING.md) or the quick start guide [STREAMING_QUICK_START.md](STREAMING_QUICK_START.md).

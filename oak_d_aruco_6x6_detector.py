@@ -726,10 +726,10 @@ class OakDArUcoDetector:
                 width, height = RESOLUTION_PROFILES[self.resolution_mode]
                 
             # Construct the GStreamer pipeline string
+            # Using software-based encoder (x264enc) instead of NVENC hardware encoder
             gst_pipeline = (
                 f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
-                f"video/x-raw,format=BGRx ! nvvidconv ! video/x-raw(memory:NVMM),format=NV12 ! "
-                f"nvv4l2h264enc insert-sps-pps=1 bitrate={self.stream_bitrate} preset-level=1 iframeinterval=30 ! "
+                f"x264enc bitrate={int(self.stream_bitrate/1000)} speed-preset=ultrafast tune=zerolatency ! "
                 f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"
             )
             
@@ -745,7 +745,7 @@ class OakDArUcoDetector:
             # Check if VideoWriter was successfully initialized
             if not self.video_writer.isOpened():
                 print("Failed to open video writer pipeline. Streaming will be disabled.")
-                print("Make sure GStreamer is properly installed and NVENC is available.")
+                print("Make sure GStreamer is properly installed with x264 encoder support.")
                 self.enable_streaming = False
                 self.video_writer = None
             else:
