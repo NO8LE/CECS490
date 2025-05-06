@@ -1,0 +1,5 @@
+Dictionary: DICT_6X6_250
+Squares X: 6
+Squares Y: 8
+Square Length: 200
+Marker Length: 150

@@ -15,6 +15,7 @@ https://github.com/CECS490-Final-Project
 - **Performance monitoring**: Adapts processing based on system capabilities
 - **Target prioritization**: Ability to track and prioritize a specific marker among many
 - **Visual targeting guidance**: Provides directional guidance to center on a target marker
+- **Real-time video streaming**: Stream annotated frames to GCS over Wi-Fi using H.264/RTP
 
 ## Requirements
 
@@ -118,12 +119,22 @@ Options:
 - `--resolution, -r RESOLUTION`: Specify resolution (low, medium, high, adaptive)
 - `--cuda, -c`: Enable CUDA acceleration if available
 - `--performance, -p`: Enable high performance mode on Jetson
+- `--stream, -st`: Enable video streaming over RTP/UDP
+- `--stream-ip IP`: IP address to stream to (default: 192.168.251.105)
+- `--stream-port PORT`: Port to stream to (default: 5000)
+- `--stream-bitrate BITRATE`: Streaming bitrate in bits/sec (default: 4000000)
 
 For targeting a specific marker:
 ```bash
 python3 oak_d_aruco_6x6_detector.py --target 5
 ```
 This will prioritize marker ID 5, providing visual guidance to center on it.
+
+For streaming video to the GCS:
+```bash
+python3 oak_d_aruco_6x6_detector.py --stream
+```
+This will stream the annotated video feed from the Jetson (192.168.251.245) to the GCS (192.168.251.105).
 
 ## Performance Optimization
 
@@ -276,6 +287,41 @@ When multiple markers are in the field of view, the system can prioritize a spec
    - "TARGET CENTERED" confirmation when aligned
 
 This functionality is particularly useful for drone navigation and autonomous targeting applications.
+
+## Video Streaming
+
+The system now supports real-time video streaming from the Jetson to a Ground Control Station (GCS) over Wi-Fi:
+
+- **H.264 encoding**: Uses NVIDIA hardware acceleration (NVENC) for efficient encoding
+- **RTP over UDP**: Low-latency transport protocol suitable for real-time applications
+- **Up to 30 FPS**: Configurable frame rate with adaptive quality
+- **Multiple viewing options**: Support for VLC, ffplay, or custom OpenCV-based viewer
+
+To enable streaming:
+
+```bash
+python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.251.105
+```
+
+On the GCS side, you can view the stream using the included receiver:
+
+```bash
+python3 gcs_video_receiver.py
+```
+
+### Network Configuration
+
+The system is configured for the following network setup:
+- Jetson (UAV): 192.168.251.245
+- GCS: 192.168.251.105
+
+A network configuration check script is provided to verify connectivity:
+
+```bash
+./check_network_config.sh --ip 192.168.251.105
+```
+
+For detailed instructions on setting up and using the video streaming functionality, see [VIDEO_STREAMING.md](VIDEO_STREAMING.md) or the quick start guide [STREAMING_QUICK_START.md](STREAMING_QUICK_START.md).
 
 ## License
 

@@ -15,11 +15,16 @@ Options:
   --resolution, -r RESOLUTION  Specify resolution (low, medium, high) (default: adaptive)
   --cuda, -c                   Enable CUDA acceleration if available
   --performance, -p            Enable high performance mode on Jetson
+  --stream, -st                Enable video streaming over RTP/UDP
+  --stream-ip IP               IP address to stream to (default: 192.168.1.100)
+  --stream-port PORT           Port to stream to (default: 5000)
+  --stream-bitrate BITRATE     Streaming bitrate in bits/sec (default: 4000000)
 
 Examples:
   python3 oak_d_aruco_6x6_detector.py
   python3 oak_d_aruco_6x6_detector.py --target 5
   python3 oak_d_aruco_6x6_detector.py -t 10 -r high -c -p
+  python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.1.100
 
 Press 'q' to exit the program.
 """
@@ -247,8 +252,10 @@ class MarkerTracker:
         return (timestamp - self.last_seen) < 1.0  # Valid for 1 second
 
 class OakDArUcoDetector:
-    def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False, 
-                 mavlink_connection=None, enable_servo_control=False):
+    def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False,
+                 mavlink_connection=None, enable_servo_control=False, enable_streaming=False,
+                 stream_ip="192.168.251.105", stream_port=5000, stream_bitrate=4000000,
+                 headless=False):
         # Target marker ID to highlight
         self.target_id = target_id
         if self.target_id is not None:
@@ -268,6 +275,11 @@ class OakDArUcoDetector:
         if self.high_performance:
             self.set_power_mode(True)
             
+        # Headless mode (no GUI)
+        self.headless = headless
+        if self.headless:
+            print("Running in headless mode (no GUI windows)")
+            
         # MAVLink settings
         self.mavlink_connection = mavlink_connection
         self.enable_servo_control = enable_servo_control
@@ -276,6 +288,18 @@ class OakDArUcoDetector:
         # Initialize MAVLink connection if requested
         if self.enable_servo_control:
             self.setup_mavlink_connection()
+            
+        # Video streaming settings
+        self.enable_streaming = enable_streaming
+        self.stream_ip = stream_ip
+        self.stream_port = stream_port
+        self.stream_bitrate = stream_bitrate
+        self.video_writer = None
+        
+        # Print streaming settings if enabled
+        if self.enable_streaming:
+            print(f"Video streaming enabled to {self.stream_ip}:{self.stream_port}")
+            print(f"Streaming bitrate: {self.stream_bitrate} bps")
             
         # PWM servo values
         self.servo_channels = {
@@ -364,6 +388,10 @@ class OakDArUcoDetector:
         
         # Load or create camera calibration
         self.load_camera_calibration()
+        
+        # Initialize video streaming if enabled
+        if self.enable_streaming:
+            self.initialize_video_streaming()
         
     def set_power_mode(self, high_performance=False):
         """
@@ -686,6 +714,57 @@ class OakDArUcoDetector:
         for channel, pwm in pwm_values.items():
             self.send_servo_command(channel, pwm)
 
+    def initialize_video_streaming(self):
+        """
+        Initialize the GStreamer pipeline for H.264 RTP streaming
+        """
+        try:
+            # Get initial resolution based on mode
+            if self.resolution_mode == "adaptive":
+                width, height = RESOLUTION_PROFILES["medium"]
+            else:
+                width, height = RESOLUTION_PROFILES[self.resolution_mode]
+                
+            # Construct the GStreamer pipeline string
+            gst_pipeline = (
+                f"appsrc ! video/x-raw,format=BGR ! videoconvert ! "
+                f"video/x-raw,format=BGRx ! nvvidconv ! video/x-raw(memory:NVMM),format=NV12 ! "
+                f"nvv4l2h264enc insert-sps-pps=1 bitrate={self.stream_bitrate} preset-level=1 iframeinterval=30 ! "
+                f"h264parse ! rtph264pay config-interval=1 pt=96 ! udpsink host={self.stream_ip} port={self.stream_port} sync=false"
+            )
+            
+            # Initialize the VideoWriter with GStreamer pipeline
+            self.video_writer = cv2.VideoWriter(
+                gst_pipeline,
+                cv2.CAP_GSTREAMER,
+                0,  # Codec is ignored when using GStreamer
+                30.0,  # Target 30 FPS
+                (width, height)
+            )
+            
+            # Check if VideoWriter was successfully initialized
+            if not self.video_writer.isOpened():
+                print("Failed to open video writer pipeline. Streaming will be disabled.")
+                print("Make sure GStreamer is properly installed and NVENC is available.")
+                self.enable_streaming = False
+                self.video_writer = None
+            else:
+                print("Video streaming pipeline initialized successfully")
+                print(f"Streaming {width}x{height} @ 30fps to {self.stream_ip}:{self.stream_port}")
+                
+                # Print SDP information for client playback
+                print("\nTo play the stream on the client (GCS), create a file named stream.sdp with these contents:")
+                print("c=IN IP4 0.0.0.0")
+                print(f"m=video {self.stream_port} RTP/AVP 96")
+                print("a=rtpmap:96 H264/90000")
+                print("\nThen use VLC to open this file, or use ffplay with:")
+                print(f"ffplay -fflags nobuffer -flags low_delay -framedrop -strict experimental \"udp://@:{self.stream_port}?buffer_size=120000\"")
+                
+        except Exception as e:
+            print(f"Error initializing video streaming: {e}")
+            self.enable_streaming = False
+            self.video_writer = None
+    
     def start(self):
         """
         Start the OAK-D camera and process frames
@@ -701,10 +780,14 @@ class OakDArUcoDetector:
         self.spatial_calc_queue = self.device.getOutputQueue(name="spatial_data", maxSize=4, blocking=False)
         self.spatial_calc_config_queue = self.device.getInputQueue("spatial_calc_config")
         
-        print("Camera started. Press 'q' to exit.")
+        if self.headless:
+            print("Camera started in headless mode. Use Ctrl+C to exit.")
+        else:
+            print("Camera started. Press 'q' to exit.")
         
         # Main loop
-        while True:
+        running = True
+        while running:
             start_time = time.time()
             
             # Get camera frames
@@ -715,16 +798,18 @@ class OakDArUcoDetector:
             # Skip frame processing if needed (for performance)
             self.frame_count += 1
             if self.skip_frames > 0 and self.frame_count % (self.skip_frames + 1) != 0:
-                # Still display the last processed frame
-                if hasattr(self, 'last_markers_frame'):
-                    cv2.imshow("RGB", self.last_markers_frame)
+                # Still display the last processed frame if not in headless mode
+                if not self.headless:
+                    if hasattr(self, 'last_markers_frame'):
+                        cv2.imshow("RGB", self.last_markers_frame)
+                        
+                    if depth_frame is not None:
+                        cv2.imshow("Depth", depth_frame)
+                        
+                    # Check for key press
+                    if cv2.waitKey(1) == ord('q'):
+                        running = False
                     
-                if depth_frame is not None:
-                    cv2.imshow("Depth", depth_frame)
-                    
-                # Check for key press
-                if cv2.waitKey(1) == ord('q'):
-                    break
                 continue
             
             if rgb_frame is not None:
@@ -742,6 +827,13 @@ class OakDArUcoDetector:
                 # Process the frame to detect ArUco markers - disable multi-scale detection to reduce lag
                 markers_frame, marker_corners, marker_ids = self.detect_aruco_markers(rgb_frame, simple_detection=True)
                 self.last_markers_frame = markers_frame
+                
+                # Stream the annotated frame if streaming is enabled
+                if self.enable_streaming and self.video_writer is not None:
+                    try:
+                        self.video_writer.write(markers_frame)
+                    except Exception as e:
+                        print(f"Error streaming frame: {e}")
                 
                 # Update detection success rate - but don't actually use it for performance monitoring
                 if False:  # Disabled to prevent lag
@@ -789,31 +881,32 @@ class OakDArUcoDetector:
                             alpha = 0.3  # Smoothing factor
                             self.estimated_distance = alpha * new_distance + (1 - alpha) * self.estimated_distance
                 
-                # Display the frames
-                cv2.putText(
-                    markers_frame,
-                    f"Est. Distance: {self.estimated_distance/1000:.2f}m",
-                    (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
-                
-                cv2.putText(
-                    markers_frame,
-                    f"Profile: {self.current_profile}",
-                    (10, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
-                
-                cv2.imshow("RGB", markers_frame)
-                
-                if depth_frame is not None:
-                    cv2.imshow("Depth", depth_frame)
+                # Display the frames (only if not in headless mode)
+                if not self.headless:
+                    cv2.putText(
+                        markers_frame,
+                        f"Est. Distance: {self.estimated_distance/1000:.2f}m",
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2
+                    )
+                    
+                    cv2.putText(
+                        markers_frame,
+                        f"Profile: {self.current_profile}",
+                        (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 0),
+                        2
+                    )
+                    
+                    cv2.imshow("RGB", markers_frame)
+                    
+                    if depth_frame is not None:
+                        cv2.imshow("Depth", depth_frame)
             
             # Calculate frame processing time
             frame_time = time.time() - start_time
@@ -823,12 +916,19 @@ class OakDArUcoDetector:
             if self.frame_count >= 30 and self.frame_count % 30 == 0:
                 self.monitor_performance()
             
-            # Check for key press
-            if cv2.waitKey(1) == ord('q'):
-                break
+            # Check for key press if not in headless mode
+            if not self.headless and cv2.waitKey(1) == ord('q'):
+                running = False
                 
         # Clean up
-        cv2.destroyAllWindows()
+        if not self.headless:
+            cv2.destroyAllWindows()
+        
+        # Release video writer if streaming was enabled
+        if self.enable_streaming and self.video_writer is not None:
+            print("Closing video streaming pipeline...")
+            self.video_writer.release()
+            
         self.device.close()
         
         # Reset Jetson power mode if it was changed
@@ -1462,12 +1562,17 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='OAK-D ArUco 6x6 Marker Detector for Drone Applications')
     parser.add_argument('--target', '-t', type=int, help='Target marker ID to highlight')
-    parser.add_argument('--resolution', '-r', choices=['low', 'medium', 'high', 'adaptive'], 
+    parser.add_argument('--resolution', '-r', choices=['low', 'medium', 'high', 'adaptive'],
                       default='adaptive', help='Resolution mode (default: adaptive)')
     parser.add_argument('--cuda', '-c', action='store_true', help='Enable CUDA acceleration if available')
     parser.add_argument('--performance', '-p', action='store_true', help='Enable high performance mode on Jetson')
     parser.add_argument('--mavlink', '-m', type=str, help='MAVLink connection string (e.g., udp:localhost:14550)')
     parser.add_argument('--servo-control', '-s', action='store_true', help='Enable servo control via MAVLink')
+    parser.add_argument('--stream', '-st', action='store_true', help='Enable video streaming over RTP/UDP')
+    parser.add_argument('--stream-ip', type=str, default='192.168.251.105', help='IP address to stream to (default: 192.168.251.105)')
+    parser.add_argument('--stream-port', type=int, default=5000, help='Port to stream to (default: 5000)')
+    parser.add_argument('--stream-bitrate', type=int, default=4000000, help='Streaming bitrate in bits/sec (default: 4000000)')
+    parser.add_argument('--headless', action='store_true', help='Run in headless mode (no GUI windows)')
     args = parser.parse_args()
     
     print("Initializing OAK-D ArUco 6x6 Marker Detector for Drone Applications...")
@@ -1477,7 +1582,12 @@ def main():
         use_cuda=args.cuda,
         high_performance=args.performance,
         mavlink_connection=args.mavlink,
-        enable_servo_control=args.servo_control
+        enable_servo_control=args.servo_control,
+        enable_streaming=args.stream,
+        stream_ip=args.stream_ip,
+        stream_port=args.stream_port,
+        stream_bitrate=args.stream_bitrate,
+        headless=args.headless
     )
     detector.start()
 

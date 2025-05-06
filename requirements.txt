@@ -5,5 +5,13 @@ scipy==1.15.2
 depthai==2.24.0.0
 matplotlib>=3.5.0  # For PDF generation of calibration patterns
 
-# Additional dependencies that might be needed
-PyTurboJPEG>=1.6.4
+# Video streaming dependencies
+Flask>=2.0.0  # For MJPEG streaming over HTTP
+Werkzeug>=2.0.0  # Required by Flask
+pymavlink>=2.4.0  # For MAVLink communication (optional)
+
+# Performance optimization
+PyTurboJPEG>=1.6.4  # For faster JPEG encoding/decoding
+
+# Optional dependencies for advanced features
+# ffmpeg-python>=0.2.0  # Uncomment if using ffmpeg for video processing
