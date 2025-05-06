@@ -10,8 +10,8 @@ USE_FFPLAY=false
 USE_VLC=false
 
 # Network configuration
-JETSON_IP="192.168.251.245"  # Jetson (sender) IP address
-GCS_IP="192.168.251.105"     # GCS (receiver) IP address
+JETSON_IP="192.168.2.2"  # Jetson (sender) IP address
+GCS_IP="192.168.2.1"     # GCS (receiver) IP address
 
 # Display help message
 show_help() {

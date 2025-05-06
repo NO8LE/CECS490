@@ -4,7 +4,7 @@
 # This script starts the ArUco detector with video streaming enabled
 
 # Default values
-STREAM_IP="192.168.251.105"
+STREAM_IP="192.168.2.1"
 STREAM_PORT=5000
 BITRATE=4000000
 RESOLUTION="adaptive"
@@ -31,7 +31,7 @@ show_help() {
     echo "  --headless                 Run in headless mode (no GUI windows, for SSH sessions)"
     echo ""
     echo "Example:"
-    echo "  $0 --ip 192.168.0.10 --port 5001 --cuda --target 5"
+    echo "  $0 --ip 192.168.2.1 --port 5001 --cuda --target 5"
     echo ""
 }
 

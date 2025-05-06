@@ -16,7 +16,7 @@ Options:
   --cuda, -c                   Enable CUDA acceleration if available
   --performance, -p            Enable high performance mode on Jetson
   --stream, -st                Enable video streaming over RTP/UDP
-  --stream-ip IP               IP address to stream to (default: 192.168.1.100)
+  --stream-ip IP               IP address to stream to (default: 192.168.2.1)
   --stream-port PORT           Port to stream to (default: 5000)
   --stream-bitrate BITRATE     Streaming bitrate in bits/sec (default: 4000000)
 
@@ -24,7 +24,7 @@ Examples:
   python3 oak_d_aruco_6x6_detector.py
   python3 oak_d_aruco_6x6_detector.py --target 5
   python3 oak_d_aruco_6x6_detector.py -t 10 -r high -c -p
-  python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.1.100
+  python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.2.1
 
 Press 'q' to exit the program.
 """
@@ -254,7 +254,7 @@ class MarkerTracker:
 class OakDArUcoDetector:
     def __init__(self, target_id=None, resolution="adaptive", use_cuda=False, high_performance=False,
                  mavlink_connection=None, enable_servo_control=False, enable_streaming=False,
-                 stream_ip="192.168.251.105", stream_port=5000, stream_bitrate=4000000,
+                 stream_ip="192.168.2.1", stream_port=5000, stream_bitrate=4000000,
                  headless=False):
         # Target marker ID to highlight
         self.target_id = target_id
@@ -1569,7 +1569,7 @@ def main():
     parser.add_argument('--mavlink', '-m', type=str, help='MAVLink connection string (e.g., udp:localhost:14550)')
     parser.add_argument('--servo-control', '-s', action='store_true', help='Enable servo control via MAVLink')
     parser.add_argument('--stream', '-st', action='store_true', help='Enable video streaming over RTP/UDP')
-    parser.add_argument('--stream-ip', type=str, default='192.168.251.105', help='IP address to stream to (default: 192.168.251.105)')
+    parser.add_argument('--stream-ip', type=str, default='192.168.2.1', help='IP address to stream to (default: 192.168.2.1)')
     parser.add_argument('--stream-port', type=int, default=5000, help='Port to stream to (default: 5000)')
     parser.add_argument('--stream-bitrate', type=int, default=4000000, help='Streaming bitrate in bits/sec (default: 4000000)')
     parser.add_argument('--headless', action='store_true', help='Run in headless mode (no GUI windows)')
