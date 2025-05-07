@@ -31,6 +31,7 @@ import numpy as np
 import cv2
 import argparse
 import os
+import sys
 import datetime
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -64,16 +65,21 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
     marker_length = int(marker_length_inches * dpi)
     
     # Create the ArUco dictionary - using 6x6 250
-    # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-        # For OpenCV 4.12.0-dev and newer
+    # Check if using OpenCV 4.10 specifically
+    if cv2.__version__.startswith("4.10"):
+        # For OpenCV 4.10
         try:
-            # Create dictionary with marker size parameter
+            # Create dictionary with appropriate method for 4.10
             aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
-            print(f"Using OpenCV {cv2.__version__} ArUco Dictionary with markerSize")
+            print(f"Using OpenCV 4.10 ArUco Dictionary with markerSize parameter")
         except Exception as e:
-            print(f"Error creating ArUco dictionary for OpenCV 4.12+: {str(e)}")
-            sys.exit(1)
+            try:
+                # Try alternative method for 4.10
+                aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+                print("Using OpenCV 4.10 with getPredefinedDictionary")
+            except Exception as e2:
+                print(f"Error creating ArUco dictionary for OpenCV 4.10: {str(e)}, {str(e2)}")
+                sys.exit(1)
     else:
         # For older OpenCV versions
         try:
@@ -85,20 +91,32 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
     
     # Create the CharucoBoard
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-        # For OpenCV 4.12.0-dev and newer
+    if cv2.__version__.startswith("4.10"):
+        # For OpenCV 4.10
         try:
-            # Create CharucoBoard with the constructor
+            # Create CharucoBoard with 4.10-compatible constructor
             charuco_board = cv2.aruco.CharucoBoard(
                 (squares_x, squares_y),  # (squaresX, squaresY) as a tuple
                 square_length,  # squareLength
                 marker_length,  # markerLength
                 aruco_dict
             )
-            print(f"Created CharucoBoard using OpenCV {cv2.__version__} constructor")
+            print(f"Created CharucoBoard using OpenCV 4.10 constructor")
         except Exception as e:
-            print(f"Error creating CharucoBoard for OpenCV 4.12+: {str(e)}")
-            sys.exit(1)
+            print(f"Error with CharucoBoard constructor: {e}")
+            try:
+                # Fallback to create method
+                charuco_board = cv2.aruco.CharucoBoard.create(
+                    squaresX=squares_x,
+                    squaresY=squares_y,
+                    squareLength=square_length,
+                    markerLength=marker_length,
+                    dictionary=aruco_dict
+                )
+                print("Created CharucoBoard using alternate create method")
+            except Exception as e2:
+                print(f"Error creating CharucoBoard: {e}, {e2}")
+                sys.exit(1)
     else:
         # For older OpenCV versions
         try:
@@ -121,39 +139,65 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
             )
     
     # Generate the board image - handle OpenCV 4.12+ differently
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10"):
         try:
-            # For OpenCV 4.12+, use the draw method with size parameter
+            # For OpenCV 4.10, try using the draw method with correct sizing
             board_size = (int(squares_x * square_length), int(squares_y * square_length))
-            board_img = np.zeros((board_size[1], board_size[0]), dtype=np.uint8)
-            board_img = charuco_board.generateImage(board_size, board_img, marginSize=0)
-            print("Generated board image using generateImage method")
+            
+            # Method 1: Try using the draw method
+            try:
+                board_img = charuco_board.draw(board_size)
+                print("Generated board image using draw method")
+            except Exception as e:
+                print(f"Error with draw method: {e}")
+                
+                # Method 2: Try using generateImage if available in 4.10
+                try:
+                    board_img = np.zeros((board_size[1], board_size[0]), dtype=np.uint8)
+                    board_img = charuco_board.generateImage(board_size, board_img, marginSize=0)
+                    print("Generated board image using generateImage method")
+                except Exception as e2:
+                    print(f"Error with generateImage method: {e2}")
+                    
+                    # Method 3: Last resort - create blank image with error message
+                    board_img = np.ones((board_size[1], board_size[0]), dtype=np.uint8) * 255
+                    
+                    # Add text explaining the error
+                    cv2.putText(
+                        board_img,
+                        "CharucoBoard generation failed with OpenCV 4.10",
+                        (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        0,
+                        1
+                    )
+                    cv2.putText(
+                        board_img,
+                        f"Errors: {str(e)}, {str(e2)}",
+                        (20, 70),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.4,
+                        0,
+                        1
+                    )
+                    print("Using fallback blank board with error message")
         except Exception as e:
-            print(f"Error generating board image with OpenCV 4.12+: {e}")
-            # Fallback - create a blank image with text
+            print(f"All board generation methods failed: {e}")
+            # Create a blank image with error indication
             board_size = (int(squares_x * square_length), int(squares_y * square_length))
             board_img = np.ones((board_size[1], board_size[0]), dtype=np.uint8) * 255
             
-            # Add text explaining the error
+            # Add error message
             cv2.putText(
                 board_img,
-                "CharucoBoard generation failed with OpenCV 4.12+",
-                (20, 40),
+                "Error generating CharucoBoard image",
+                (board_size[0]//4, board_size[1]//2),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
+                1.0,
                 0,
-                1
+                2
             )
-            cv2.putText(
-                board_img,
-                f"Error: {str(e)}",
-                (20, 70),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                0,
-                1
-            )
-            print("Using fallback blank board with error message")
     else:
         # For older OpenCV versions, use the traditional API
         board_img = charuco_board.draw(

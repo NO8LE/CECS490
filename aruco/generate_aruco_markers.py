@@ -130,15 +130,21 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
     Returns:
         The marker image
     """
-    # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-        # For OpenCV 4.12.0-dev and newer
+    # Check if using OpenCV 4.10 specifically
+    if cv2.__version__.startswith("4.10"):
+        # For OpenCV 4.10
         try:
-            # Create dictionary with marker size parameter
+            # Create dictionary with appropriate method for 4.10
             aruco_dict = cv2.aruco.Dictionary(dictionary_id, 6)
+            print("Using OpenCV 4.10 with Dictionary constructor and marker size")
         except Exception as e:
-            print(f"Error creating ArUco dictionary for OpenCV 4.12+: {str(e)}")
-            sys.exit(1)
+            try:
+                # Try alternative method for 4.10
+                aruco_dict = cv2.aruco.getPredefinedDictionary(dictionary_id)
+                print("Using OpenCV 4.10 with getPredefinedDictionary")
+            except Exception as e2:
+                print(f"Error creating ArUco dictionary for OpenCV 4.10: {str(e)}, {str(e2)}")
+                sys.exit(1)
     else:
         # Get the ArUco dictionary using the method that worked during initialization
         if dictionary_method == "old":
@@ -149,8 +155,6 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
             aruco_dict = cv2.aruco.Dictionary.create(dictionary_id)
         elif dictionary_method == "constructor":
             aruco_dict = cv2.aruco.Dictionary(dictionary_id)
-        elif dictionary_method == "constructor_with_size":
-            aruco_dict = cv2.aruco.Dictionary(dictionary_id, 6)
         else:
             # Fallback to trying all methods
             try:
@@ -165,27 +169,27 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
                         try:
                             aruco_dict = cv2.aruco.Dictionary(dictionary_id)
                         except:
-                            # Last try with marker size parameter for OpenCV 4.12.0-dev
-                            aruco_dict = cv2.aruco.Dictionary(dictionary_id, 6)
+                            print("All dictionary creation methods failed")
+                            sys.exit(1)
     
     # Generate the marker - handle OpenCV 4.12+ differently
     marker_image = np.zeros((size, size), dtype=np.uint8)
     
     # Check OpenCV version for the appropriate API
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10"):
         try:
-            # For OpenCV 4.12+, try using the dictionary's drawMarker method
-            marker_image = aruco_dict.drawMarker(marker_id, size, marker_image, 1)
+            # For OpenCV 4.10, use standard generateImageMarker function
+            marker_image = cv2.aruco.generateImageMarker(aruco_dict, marker_id, size)
+            print(f"Generated marker ID {marker_id} using generateImageMarker")
         except Exception as e:
-            print(f"Error using dictionary.drawMarker: {e}")
+            print(f"Error using generateImageMarker: {e}")
             try:
-                # Try alternative approach - create a detector and use its draw function
-                detector = cv2.aruco.ArucoDetector(aruco_dict)
-                marker_image = detector.generateImageMarker(marker_id, size, marker_image, 1)
+                # Try with drawMarker as fallback
+                marker_image = cv2.aruco.drawMarker(aruco_dict, marker_id, size, marker_image, 1)
+                print(f"Generated marker ID {marker_id} using drawMarker")
             except Exception as e2:
-                print(f"Error generating marker with ArucoDetector: {e2}")
-                print("Using fallback method - creating a blank marker with ID text")
-                # Create a blank marker with the ID as text
+                print(f"Error with drawMarker: {e2}")
+                # Create a blank marker with the ID as text as last resort
                 marker_image.fill(255)  # White background
                 cv2.putText(
                     marker_image,
@@ -196,6 +200,7 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
                     0,  # Black text
                     2
                 )
+                print(f"Using text fallback for marker ID {marker_id}")
     else:
         # For older OpenCV versions, use the traditional API
         marker_image = cv2.aruco.drawMarker(aruco_dict, marker_id, size, marker_image, 1)
