@@ -72,12 +72,10 @@ def run_detector():
             
             # For OpenCV 4.10.0, use our enhanced detector
             if cv2.__version__.startswith("4.10"):
-                print("Using enhanced ArUco detector for OpenCV 4.10.0")
-                
-                # Use our enhanced detector
+                # Use our enhanced detector without printing message every time
                 markers_frame, corners, ids = detect_aruco_markers(
-                    frame, 
-                    self.aruco_dict, 
+                    frame,
+                    self.aruco_dict,
                     self.aruco_params,
                     self.camera_matrix,
                     self.dist_coeffs

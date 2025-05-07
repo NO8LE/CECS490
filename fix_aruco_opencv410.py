@@ -39,18 +39,26 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     # Set detection parameters for OpenCV 4.10.0
-    # These are critical to prevent false positives
+    # Adjusted for better detection of markers on CharUco boards
     aruco_params.adaptiveThreshWinSizeMin = 3
     aruco_params.adaptiveThreshWinSizeMax = 23
     aruco_params.adaptiveThreshWinSizeStep = 10
     aruco_params.adaptiveThreshConstant = 7
-    aruco_params.minMarkerPerimeterRate = 0.05  # Increased - critical for filtering
+    aruco_params.minMarkerPerimeterRate = 0.03  # Reduced to detect smaller markers
     aruco_params.maxMarkerPerimeterRate = 4.0
-    aruco_params.polygonalApproxAccuracyRate = 0.03  # More accurate corner detection
-    aruco_params.minCornerDistanceRate = 0.05  # Minimum distance between corners
-    aruco_params.minDistanceToBorder = 3  # Minimum distance from borders
-    aruco_params.minOtsuStdDev = 5.0  # Filters out low-contrast regions
-    aruco_params.errorCorrectionRate = 0.8  # Higher than default (0.6)
+    aruco_params.polygonalApproxAccuracyRate = 0.05  # Increased for better detection
+    aruco_params.minCornerDistanceRate = 0.05
+    aruco_params.minDistanceToBorder = 3
+    aruco_params.minOtsuStdDev = 5.0
+    aruco_params.errorCorrectionRate = 0.6  # Default value
+    
+    # Additional parameters for better detection
+    if hasattr(aruco_params, 'cornerRefinementMethod'):
+        aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+    if hasattr(aruco_params, 'cornerRefinementWinSize'):
+        aruco_params.cornerRefinementWinSize = 5
+    if hasattr(aruco_params, 'cornerRefinementMaxIterations'):
+        aruco_params.cornerRefinementMaxIterations = 30
     
     # Create detector (OpenCV 4.10.0 uses ArucoDetector)
     detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
@@ -67,7 +75,10 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
                 corners_list.append(corners[i].reshape(1, 4, 2))
             corners = corners_list
         
-        # Filter out false positives
+        # Store original count for logging
+        original_count = len(ids)
+        
+        # Filter out false positives with more relaxed criteria
         valid_indices = []
         valid_corners = []
         valid_ids = []
@@ -79,18 +90,18 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
             
             # 1. Verify marker has a valid perimeter (minimum size)
             perimeter = cv2.arcLength(marker_corners[0], True)
-            min_perimeter = gray.shape[0] * 0.03  # At least 3% of image height
+            min_perimeter = gray.shape[0] * 0.01  # Reduced to 1% of image height
             
-            # 2. Verify marker is roughly square
+            # 2. Verify marker is roughly square (with more tolerance)
             width = np.linalg.norm(marker_corners[0][0] - marker_corners[0][1])
             height = np.linalg.norm(marker_corners[0][1] - marker_corners[0][2])
             if width > 0 and height > 0:
                 aspect_ratio = width/height
-                aspect_valid = 0.7 < aspect_ratio < 1.3  # Square should have aspect ratio near 1
+                aspect_valid = 0.5 < aspect_ratio < 2.0  # More tolerant aspect ratio
             else:
                 aspect_valid = False
             
-            # 3. Verify corner angles (should be close to 90 degrees for square)
+            # 3. Verify corner angles with more tolerance
             angles_valid = True
             for j in range(4):
                 p1 = marker_corners[0][j]
@@ -113,8 +124,8 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
                     cos_angle = max(-1.0, min(1.0, cos_angle))
                     angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
                     
-                    # In a perfect square, opposite corners should have angle close to 90 degrees
-                    if abs(angle - 90) > 25:  # Stricter angle threshold (was 35)
+                    # More tolerant angle threshold
+                    if abs(angle - 90) > 40:  # Increased from 25 to 40
                         angles_valid = False
                         break
                 else:
@@ -131,11 +142,11 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
         if len(valid_indices) > 0:
             corners = valid_corners
             ids = np.array(valid_ids)
-            print(f"Detected {len(ids)} valid markers out of {len(ids)} candidates")
+            print(f"Detected {len(ids)} valid markers out of {original_count} candidates")
         else:
             corners = []
             ids = None
-            print("All detected markers were filtered out as false positives")
+            print(f"All {original_count} detected markers were filtered out as false positives")
     else:
         corners = []
         ids = None
@@ -256,37 +267,70 @@ def create_test_image(width=640, height=480):
     ]):
         # Create a marker image
         marker_id = i
-        marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
         
-        # Handle OpenCV 4.10.0 API changes for ArUco marker generation
-        # In OpenCV 4.10.0, the drawMarker method has a different signature
+        # Create a blank marker image
+        marker_img = None
+        success = False
+        
+        # Method 1: Using global cv2.aruco.drawMarker function (OpenCV 3.x and 4.x < 4.10)
         try:
-            # Method 1: Using dictionary.drawMarker with the new signature
-            marker_img = aruco_dict.drawMarker(marker_id, marker_size, marker_img, 1)
-        except Exception:
-            try:
-                # Method 2: Using ArucoDetector.generateImageMarker
-                detector = cv2.aruco.ArucoDetector(aruco_dict)
-                marker_img = detector.generateImageMarker(marker_id, marker_size, marker_img, 1)
-            except Exception:
-                # Method 3: Fallback to using the global function if available
-                try:
-                    marker_img = cv2.aruco.drawMarker(aruco_dict, marker_id, marker_size, marker_img, 1)
-                except Exception:
-                    # Last resort: Create a simple visual marker with text
-                    marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
-                    cv2.putText(
-                        marker_img,
-                        f"ID: {marker_id}",
-                        (marker_size//10, marker_size//2),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        0,
-                        1
-                    )
+            marker_img = cv2.aruco.drawMarker(aruco_dict, marker_id, marker_size)
+            success = True
+            print(f"Created marker ID {marker_id} using cv2.aruco.drawMarker")
+        except Exception as e:
+            print(f"Method 1 failed: {e}")
         
-        # Convert to RGB
-        marker_rgb = cv2.cvtColor(marker_img, cv2.COLOR_GRAY2BGR)
+        # Method 2: Using dictionary.drawMarker with destination image (OpenCV 4.10+)
+        if not success:
+            try:
+                marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
+                marker_img = aruco_dict.drawMarker(marker_id, marker_size, marker_img, 1)
+                success = True
+                print(f"Created marker ID {marker_id} using dictionary.drawMarker")
+            except Exception as e:
+                print(f"Method 2 failed: {e}")
+        
+        # Method 3: Using ArucoDetector.generateImageMarker (OpenCV 4.10+)
+        if not success:
+            try:
+                detector = cv2.aruco.ArucoDetector(aruco_dict)
+                marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
+                marker_img = detector.generateImageMarker(marker_id, marker_size, marker_img, 1)
+                success = True
+                print(f"Created marker ID {marker_id} using detector.generateImageMarker")
+            except Exception as e:
+                print(f"Method 3 failed: {e}")
+        
+        # Fallback method: Create a simple visual marker
+        if not success or marker_img is None:
+            print(f"All methods failed for marker ID {marker_id}, using fallback")
+            marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
+            # Draw a black square border
+            cv2.rectangle(marker_img, (10, 10), (marker_size-10, marker_size-10), 0, 2)
+            # Draw marker ID
+            cv2.putText(
+                marker_img,
+                f"ID: {marker_id}",
+                (marker_size//4, marker_size//2),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                0,  # Black text
+                2
+            )
+        
+        # Ensure marker_img is valid
+        if marker_img is None:
+            print(f"Warning: Failed to create marker ID {marker_id}")
+            continue
+            
+        # Make sure marker_img is grayscale
+        if len(marker_img.shape) == 3:
+            marker_gray = cv2.cvtColor(marker_img, cv2.COLOR_BGR2GRAY)
+        else:
+            marker_gray = marker_img
+            
+        # Convert to RGB for placing in the color image
+        marker_rgb = cv2.cvtColor(marker_gray, cv2.COLOR_GRAY2BGR)
         
         # Calculate position to place marker
         x, y = position
@@ -294,12 +338,15 @@ def create_test_image(width=640, height=480):
         y = y - marker_size // 2
         
         # Make sure the marker fits in the image
-        if (x >= 0 and y >= 0 and 
-            x + marker_size < width and 
+        if (x >= 0 and y >= 0 and
+            x + marker_size < width and
             y + marker_size < height):
             
             # Place marker in the image
             img[y:y+marker_size, x:x+marker_size] = marker_rgb
+            print(f"Placed marker ID {marker_id} at position ({x}, {y})")
+        else:
+            print(f"Warning: Marker ID {marker_id} position ({x}, {y}) is out of bounds")
     
     return img
 
