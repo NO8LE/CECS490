@@ -280,6 +280,9 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
 
 def create_test_image(width=640, height=480):
     """Create a synthetic test image with ArUco markers"""
+    # Use the global variable to track which dictionary method was used
+    global generation_dict_method
+    
     # Create a base image
     img = np.ones((height, width, 3), dtype=np.uint8) * 240
     
@@ -306,7 +309,6 @@ def create_test_image(width=640, height=480):
         # Method 1: Using getPredefinedDictionary and generateImageMarker (OpenCV 4.10+)
         try:
             # Get a predefined dictionary - store this for later use in detection
-            global generation_dict_method
             generation_dict_method = "getPredefinedDictionary"
             
             # Get a predefined dictionary
@@ -322,7 +324,6 @@ def create_test_image(width=640, height=480):
         if not success:
             try:
                 # Try using Dictionary_get
-                global generation_dict_method
                 generation_dict_method = "Dictionary_get"
                 
                 aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
@@ -335,7 +336,6 @@ def create_test_image(width=640, height=480):
         # Method 3: Try with our original Dictionary constructor
         if not success:
             try:
-                global generation_dict_method
                 generation_dict_method = "Dictionary"
                 
                 aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
@@ -348,7 +348,6 @@ def create_test_image(width=640, height=480):
         # Method 4: Try creating a marker manually based on the ArUco pattern
         if not success:
             try:
-                global generation_dict_method
                 generation_dict_method = "manual"
                 
                 # Create a blank white image
@@ -383,7 +382,6 @@ def create_test_image(width=640, height=480):
         
         # Fallback method: Create a simple visual marker with text
         if not success or marker_img is None:
-            global generation_dict_method
             generation_dict_method = "text_fallback"
             
             print(f"All methods failed for marker ID {marker_id}, using text fallback")
