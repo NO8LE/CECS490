@@ -183,26 +183,44 @@ def get_aruco_dictionary(dictionary_id=cv2.aruco.DICT_6X6_250):
     Returns:
         The ArUco dictionary
     """
-    if dictionary_method == "old":
-        return cv2.aruco.Dictionary_get(dictionary_id)
-    elif dictionary_method == "new":
-        return cv2.aruco.Dictionary.get(dictionary_id)
-    elif dictionary_method == "create":
-        return cv2.aruco.Dictionary.create(dictionary_id)
-    elif dictionary_method == "constructor":
-        return cv2.aruco.Dictionary(dictionary_id)
-    else:
-        # Fallback to trying all methods
+    # Check OpenCV version first to use the appropriate API
+    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        # For OpenCV 4.12.0-dev and newer, always use the Dictionary constructor with marker size
         try:
+            # Create dictionary with marker size parameter (6 for 6x6 dictionary)
+            return cv2.aruco.Dictionary(dictionary_id, 6)
+        except Exception as e:
+            print(f"Error creating ArUco dictionary for OpenCV 4.12+: {str(e)}")
+            raise
+    else:
+        # For older OpenCV versions
+        if dictionary_method == "old":
             return cv2.aruco.Dictionary_get(dictionary_id)
-        except:
+        elif dictionary_method == "new":
+            return cv2.aruco.Dictionary.get(dictionary_id)
+        elif dictionary_method == "create":
+            return cv2.aruco.Dictionary.create(dictionary_id)
+        elif dictionary_method == "constructor":
+            return cv2.aruco.Dictionary(dictionary_id)
+        elif dictionary_method == "opencv4.12":
+            # This should not happen for older OpenCV versions, but just in case
+            return cv2.aruco.Dictionary(dictionary_id, 6)
+        else:
+            # Fallback to trying all methods
             try:
-                return cv2.aruco.Dictionary.get(dictionary_id)
+                return cv2.aruco.Dictionary_get(dictionary_id)
             except:
                 try:
-                    return cv2.aruco.Dictionary.create(dictionary_id)
+                    return cv2.aruco.Dictionary.get(dictionary_id)
                 except:
-                    return cv2.aruco.Dictionary(dictionary_id)
+                    try:
+                        return cv2.aruco.Dictionary.create(dictionary_id)
+                    except:
+                        try:
+                            return cv2.aruco.Dictionary(dictionary_id)
+                        except:
+                            # Last resort for OpenCV 4.x
+                            return cv2.aruco.Dictionary(dictionary_id, 6)
 
 def create_charuco_board(squares_x=8, squares_y=6, square_length=0.325, marker_length=0.244, dictionary_id=cv2.aruco.DICT_6X6_250):
     """
@@ -316,19 +334,40 @@ class CameraCalibrator:
             # Get the ArUco dictionary
             self.aruco_dict = get_aruco_dictionary()
             
-            # Initialize detector parameters
-            try:
-                self.aruco_params = cv2.aruco.DetectorParameters.create()
-            except:
+            # Initialize detector parameters - handle OpenCV 4.12+ differently
+            if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
                 try:
-                    self.aruco_params = cv2.aruco.DetectorParameters_create()
+                    # For OpenCV 4.12.0-dev and newer
+                    self.aruco_params = cv2.aruco.DetectorParameters()
+                    print("Using cv2.aruco.DetectorParameters() for OpenCV 4.12+")
+                    
+                    # Configure parameters for better detection
+                    self.aruco_params.adaptiveThreshWinSizeMin = 3
+                    self.aruco_params.adaptiveThreshWinSizeMax = 23
+                    self.aruco_params.adaptiveThreshWinSizeStep = 10
+                    self.aruco_params.adaptiveThreshConstant = 7
+                    self.aruco_params.minMarkerPerimeterRate = 0.03
+                    self.aruco_params.maxMarkerPerimeterRate = 4.0
+                    self.aruco_params.polygonalApproxAccuracyRate = 0.05
+                    self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+                except Exception as e:
+                    print(f"Error creating detector parameters for OpenCV 4.12+: {str(e)}")
+                    print("Using None for parameters")
+                    self.aruco_params = None
+            else:
+                # For older OpenCV versions
+                try:
+                    self.aruco_params = cv2.aruco.DetectorParameters.create()
                 except:
                     try:
-                        self.aruco_params = cv2.aruco.DetectorParameters()
-                    except Exception as e:
-                        print(f"Error creating detector parameters: {str(e)}")
-                        print("Using default parameters")
-                        self.aruco_params = None
+                        self.aruco_params = cv2.aruco.DetectorParameters_create()
+                    except:
+                        try:
+                            self.aruco_params = cv2.aruco.DetectorParameters()
+                        except Exception as e:
+                            print(f"Error creating detector parameters: {str(e)}")
+                            print("Using default parameters")
+                            self.aruco_params = None
             
             # Arrays to store calibration data
             self.all_charuco_corners = []
@@ -454,29 +493,89 @@ class CameraCalibrator:
         # Estimate distance for drone mode
         estimated_distance = None
         
-        # Detect ArUco markers
-        corners, ids, rejected = cv2.aruco.detectMarkers(
-            gray,
-            self.aruco_dict,
-            parameters=self.aruco_params
-        )
+        # Detect ArUco markers - handle OpenCV 4.12+ differently
+        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+            try:
+                # For OpenCV 4.12+, use the ArucoDetector
+                detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+                corners, ids, rejected = detector.detectMarkers(gray)
+                print("Using ArucoDetector for marker detection")
+            except Exception as e:
+                print(f"Error using ArucoDetector: {e}")
+                # Fallback to direct detection
+                try:
+                    corners, ids, rejected = cv2.aruco.detectMarkers(
+                        gray,
+                        self.aruco_dict,
+                        parameters=self.aruco_params
+                    )
+                    print("Fallback to detectMarkers")
+                except Exception as e2:
+                    print(f"Error in fallback detection: {e2}")
+                    corners = []
+                    ids = None
+                    rejected = []
+        else:
+            # For older OpenCV versions
+            corners, ids, rejected = cv2.aruco.detectMarkers(
+                gray,
+                self.aruco_dict,
+                parameters=self.aruco_params
+            )
         
         # If markers are detected
         if ids is not None and len(ids) > 0:
             # Draw detected markers
             cv2.aruco.drawDetectedMarkers(display_frame, corners, ids)
             
-            # Interpolate CharucoBoard corners
+            # Interpolate CharucoBoard corners - handle OpenCV 4.12+ differently
             try:
-                ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-                    corners,
-                    ids,
-                    gray,
-                    self.board
-                )
+                if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+                    try:
+                        # For OpenCV 4.12+, use the CharucoDetector
+                        charuco_params = cv2.aruco.CharucoParameters()
+                        charuco_detector = cv2.aruco.CharucoDetector(self.board, charuco_params)
+                        
+                        # Detect the board
+                        charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
+                        
+                        # Check if we have enough corners
+                        ret = charuco_corners is not None and len(charuco_corners) > 4
+                        if ret:
+                            print(f"Detected CharucoBoard with {len(charuco_corners)} corners using CharucoDetector")
+                        else:
+                            charuco_corners = None
+                            charuco_ids = None
+                            ret = False
+                    except Exception as e:
+                        print(f"Error with CharucoDetector: {e}")
+                        # Fallback to traditional method
+                        try:
+                            ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                                corners,
+                                ids,
+                                gray,
+                                self.board
+                            )
+                            print("Fallback to interpolateCornersCharuco")
+                        except Exception as e2:
+                            print(f"Error in fallback interpolation: {e2}")
+                            ret = False
+                            charuco_corners = None
+                            charuco_ids = None
+                else:
+                    # For older OpenCV versions
+                    ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+                        corners,
+                        ids,
+                        gray,
+                        self.board
+                    )
             except Exception as e:
                 print(f"Error interpolating corners: {str(e)}")
                 ret = False
+                charuco_corners = None
+                charuco_ids = None
             
             # If CharucoBoard corners are detected, enough time has passed, and we have at least 6 corners
             if ret and charuco_corners is not None and len(charuco_corners) >= 6 and (time.time() - self.last_capture_time) > FRAME_INTERVAL:
