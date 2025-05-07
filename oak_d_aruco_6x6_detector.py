@@ -365,8 +365,8 @@ class OakDArUcoDetector:
         self.max_pwm = 2000
             
         # Initialize ArUco detector based on OpenCV version
-        if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-            # For OpenCV 4.10.0 and newer - use the new API consistently
+        if cv2.__version__.startswith("4.10"):
+            # For OpenCV 4.10.0 - use the new API consistently
             try:
                 print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
                 # Create dictionary with marker size parameter
@@ -403,10 +403,10 @@ class OakDArUcoDetector:
                 
                 # Create the detector
                 self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
-                print("Successfully created ArucoDetector for OpenCV 4.12+")
+                print("Successfully created ArucoDetector for OpenCV 4.10")
                 
                 # Store the method for reference
-                dictionary_method = "opencv4.12_detector"
+                dictionary_method = "opencv4.10_detector"
             except Exception as e:
                 print(f"Error initializing ArUco detector for OpenCV 4.12+: {e}")
                 print("Falling back to basic initialization")
@@ -443,18 +443,18 @@ class OakDArUcoDetector:
                                 print(f"All dictionary creation methods failed: {e}")
                                 sys.exit(1)
         
-        # Initialize detector parameters - handle OpenCV 4.8+ and 4.12+ differently
-        if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        # Initialize detector parameters for OpenCV 4.10
+        if cv2.__version__.startswith("4.10"):
             try:
-                # For OpenCV 4.12.0-dev and newer
+                # For OpenCV 4.10.0
                 self.aruco_params = cv2.aruco.DetectorParameters()
-                print("Using cv2.aruco.DetectorParameters() for OpenCV 4.12+")
+                print("Using cv2.aruco.DetectorParameters() for OpenCV 4.10")
             except Exception as e:
-                print(f"Error creating detector parameters for OpenCV 4.12+: {str(e)}")
+                print(f"Error creating detector parameters for OpenCV 4.10: {str(e)}")
                 print("Using None for parameters")
                 self.aruco_params = None
         else:
-            # For older OpenCV versions
+            # For other OpenCV versions
             try:
                 self.aruco_params = cv2.aruco.DetectorParameters.create()
                 print("Using cv2.aruco.DetectorParameters.create()")
@@ -1294,7 +1294,7 @@ class OakDArUcoDetector:
         rejected = []
         
         # For OpenCV 4.10.0 and newer, use the ArucoDetector API consistently
-        if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        if cv2.__version__.startswith("4.10"):
             try:
                 # Make sure we have a detector
                 if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
@@ -1451,9 +1451,9 @@ class OakDArUcoDetector:
         if not simple_detection and ids is not None and len(ids) >= 4:
             # Check if this looks like a CharucoBoard pattern
             try:
-                # Create a CharucoBoard object for detection - handle OpenCV 4.8+ and 4.12+ differently
-                if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-                    # For OpenCV 4.12+
+                # Create a CharucoBoard object for detection specifically for OpenCV 4.10
+                if cv2.__version__.startswith("4.10"):
+                    # For OpenCV 4.10
                     try:
                         # Create dictionary with getPredefinedDictionary (known to work with OpenCV 4.10)
                         try:

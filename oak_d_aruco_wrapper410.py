@@ -204,19 +204,16 @@ def run_detector():
                     
                     # Try different dictionary creation methods - critical for CharucoBoard
                     try:
-                        # Force reset dictionary with all methods to find the right one
+                        # Use only methods that work with OpenCV 4.10
                         dictionary_methods = [
-                            # Method 1: Dictionary constructor with markerSize (preferred for OpenCV 4.10+)
-                            lambda: cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6),
-                            
-                            # Method 2: getPredefinedDictionary (alternate approach)
+                            # Method 1: getPredefinedDictionary (primary method for OpenCV 4.10)
                             lambda: cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250),
                             
-                            # Method 3: Dictionary_get (older OpenCV versions)
-                            lambda: cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250),
+                            # Method 2: Dictionary constructor with markerSize (fallback for OpenCV 4.10)
+                            lambda: cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6),
                             
-                            # Method 4: Try with 4x4 dictionary instead (might work better with small markers)
-                            lambda: cv2.aruco.Dictionary(cv2.aruco.DICT_4X4_250, 4)
+                            # Method 3: Try with 4x4 dictionary instead (might work better with small markers)
+                            lambda: cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
                         ]
                         
                         # Try each dictionary method
