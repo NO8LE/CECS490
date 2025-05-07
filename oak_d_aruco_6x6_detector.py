@@ -168,6 +168,10 @@ except Exception as e:
                     print(f"Dictionary constructor error: {str(e4)}")
                     print(f"Dictionary with markerSize error: {str(e5)}")
                 print("\nPlease check your OpenCV installation and version.")
+                # Add detailed version info to help with debugging
+                print(f"\nDetailed OpenCV version info:")
+                print(f"OpenCV version: {cv2.__version__}")
+                print(f"Build information: {cv2.getBuildInformation()}")
                 sys.exit(1)
 
 # ArUco marker side length in meters
@@ -364,16 +368,31 @@ class OakDArUcoDetector:
         # Initialize detector parameters
         try:
             self.aruco_params = cv2.aruco.DetectorParameters.create()
-        except:
+            print("Using cv2.aruco.DetectorParameters.create()")
+        except Exception as dp_e1:
             try:
                 self.aruco_params = cv2.aruco.DetectorParameters_create()
-            except:
+                print("Using cv2.aruco.DetectorParameters_create()")
+            except Exception as dp_e2:
                 try:
                     self.aruco_params = cv2.aruco.DetectorParameters()
-                except Exception as e:
-                    print(f"Error creating detector parameters: {str(e)}")
-                    print("Using default parameters")
-                    self.aruco_params = None
+                    print("Using cv2.aruco.DetectorParameters()")
+                except Exception as dp_e3:
+                    # Additional attempt for OpenCV 4.12.0-dev
+                    try:
+                        # Create a default DetectorParameters with empty constructor
+                        # and set parameters individually if needed
+                        self.aruco_params = cv2.aruco.DetectorParameters()
+                        print("Using cv2.aruco.DetectorParameters() with empty constructor")
+                    except Exception as dp_e4:
+                        print(f"Error creating detector parameters: {str(dp_e4)}")
+                        print("Detailed detector parameter errors:")
+                        print(f"DetectorParameters.create(): {str(dp_e1)}")
+                        print(f"DetectorParameters_create(): {str(dp_e2)}")
+                        print(f"DetectorParameters(): {str(dp_e3)}")
+                        print(f"Empty constructor fallback: {str(dp_e4)}")
+                        print("Using default parameters")
+                        self.aruco_params = None
         
         # Set initial detection profile (will be updated based on distance)
         self.current_profile = "medium"
@@ -867,21 +886,56 @@ class OakDArUcoDetector:
         """
         Start the OAK-D camera and process frames
         """
-        # Connect to device and start pipeline
-        # Use Device() and startPipeline(pipeline) instead of Device(pipeline)
-        self.device = dai.Device()
-        self.device.startPipeline(self.pipeline)
+        print("=" * 50)
+        print("STARTING CAMERA INITIALIZATION")
+        print("=" * 50)
         
-        # Get output queues
-        self.rgb_queue = self.device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
-        self.depth_queue = self.device.getOutputQueue(name="depth", maxSize=4, blocking=False)
-        self.spatial_calc_queue = self.device.getOutputQueue(name="spatial_data", maxSize=4, blocking=False)
-        self.spatial_calc_config_queue = self.device.getInputQueue("spatial_calc_config")
-        
-        if self.headless:
-            print("Camera started in headless mode. Use Ctrl+C to exit.")
-        else:
-            print("Camera started. Press 'q' to exit.")
+        try:
+            # Connect to device
+            print("Connecting to OAK-D device...")
+            try:
+                self.device = dai.Device()
+                print("OAK-D device connected successfully")
+            except Exception as e:
+                print(f"Failed to connect to OAK-D device: {e}")
+                print("Please ensure the device is connected and properly recognized by the system")
+                return
+            
+            # Start pipeline
+            print("Starting pipeline...")
+            try:
+                self.device.startPipeline(self.pipeline)
+                print("Pipeline started successfully")
+            except Exception as e:
+                print(f"Failed to start pipeline: {e}")
+                print("Pipeline configuration may be incompatible with the device")
+                self.device.close()
+                return
+            
+            # Get output queues
+            print("Setting up I/O queues...")
+            try:
+                self.rgb_queue = self.device.getOutputQueue(name="rgb", maxSize=4, blocking=False)
+                self.depth_queue = self.device.getOutputQueue(name="depth", maxSize=4, blocking=False)
+                self.spatial_calc_queue = self.device.getOutputQueue(name="spatial_data", maxSize=4, blocking=False)
+                self.spatial_calc_config_queue = self.device.getInputQueue("spatial_calc_config")
+                print("I/O queues set up successfully")
+            except Exception as e:
+                print(f"Failed to set up I/O queues: {e}")
+                self.device.close()
+                return
+                
+            print("Camera initialization completed successfully!")
+            print("=" * 50)
+            
+            if self.headless:
+                print("Camera started in headless mode. Use Ctrl+C to exit.")
+            else:
+                print("Camera started. Press 'q' to exit.")
+        except Exception as e:
+            print(f"ERROR: Unexpected error during camera initialization: {str(e)}")
+            print("=" * 50)
+            return
         
         # Main loop
         running = True
@@ -1120,11 +1174,29 @@ class OakDArUcoDetector:
             gray = self.preprocess_image(frame)
         
         # Detect ArUco markers
-        corners, ids, rejected = cv2.aruco.detectMarkers(
-            gray, 
-            self.aruco_dict, 
-            parameters=self.aruco_params
-        )
+        try:
+            corners, ids, rejected = cv2.aruco.detectMarkers(
+                gray, 
+                self.aruco_dict, 
+                parameters=self.aruco_params
+            )
+            if not self.quiet:
+                print(f"ArUco markers detected: {0 if ids is None else len(ids)}")
+        except Exception as e:
+            print(f"Error in cv2.aruco.detectMarkers: {str(e)}")
+            # Try an alternative approach if detectMarkers fails
+            try:
+                # Create a detector object for OpenCV 4.12.0-dev
+                detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+                corners, ids, rejected = detector.detectMarkers(gray)
+                if not self.quiet:
+                    print(f"Using ArucoDetector API, markers detected: {0 if ids is None else len(ids)}")
+            except Exception as e2:
+                print(f"Error with alternative detectMarkers approach: {str(e2)}")
+                # Return empty results if both methods fail
+                corners = []
+                ids = None
+                rejected = []
         
         # Try to detect CharucoBoard only if not in simple detection mode
         charuco_corners = None
