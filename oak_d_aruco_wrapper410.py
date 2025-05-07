@@ -206,12 +206,6 @@ def run_detector():
                     except Exception as e:
                         print(f"Warning: Could not reconfigure ArucoDetector: {e}")
                 
-                # Save a copy of the input frame for diagnostics if needed
-                debug_frame = frame.copy()
-                debug_dir = "aruco_debug"
-                os.makedirs(debug_dir, exist_ok=True)
-                timestamp = int(time.time())
-                
                 # Try standard detection first
                 print("Calling enhanced detect_aruco_markers function...")
                 markers_frame, corners, ids = detect_aruco_markers(
@@ -222,176 +216,157 @@ def run_detector():
                     self.dist_coeffs
                 )
                 
-                # If no markers found, try with CharucoBoard detection
+                # If no markers found, try direct dictionary retrieval for CharucoBoard detection
                 if ids is None or len(ids) == 0:
-                    print("Standard detection found no markers, trying CharucoBoard detection...")
-                    try:
-                        # Create CharucoBoard for detection (same parameters as calibration)
-                        squares_x, squares_y = 6, 6  # Common CharucoBoard dimensions
-                        square_length = 0.3048/6  # Default to 12 inches (0.3048m) / 6 squares
-                        marker_length = square_length * 0.75  # 75% of square size
-                        
-                        # Create CharucoBoard
-                        board = cv2.aruco.CharucoBoard(
-                            (squares_x, squares_y),  # (squaresX, squaresY) tuple
-                            square_length,  # squareLength
-                            marker_length,  # markerLength 
-                            self.aruco_dict  # Dictionary
-                        )
-                        
-                        # Create CharucoDetector
-                        charuco_params = cv2.aruco.CharucoParameters()
-                        charuco_detector = cv2.aruco.CharucoDetector(board, charuco_params)
-                        
-                        # Save a copy of the grayscale image
-                        gray_copy = gray.copy()
-                        cv2.imwrite(f"{debug_dir}/gray_{timestamp}.jpg", gray_copy)
-                        
-                        print("Attempting CharucoBoard detection...")
-                        # Detect the board
-                        charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
-                        
-                        # If markers found
-                        if marker_ids is not None and len(marker_ids) > 0:
-                            print(f"CharucoBoard detection found {len(marker_ids)} markers!")
-                            # Use these results
-                            corners = marker_corners
-                            ids = marker_ids
-                            
-                            # Create a visualization of the results
-                            markers_frame = frame.copy()
-                            cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
-                            cv2.imwrite(f"{debug_dir}/charuco_detection_{timestamp}.jpg", markers_frame)
-                    except Exception as e:
-                        print(f"Error during CharucoBoard detection: {e}")
-                
-                # If still no markers found, try with inverted image (black/white flipped)
-                if ids is None or len(ids) == 0:
-                    print("CharucoBoard detection found no markers, trying with inverted image...")
-                    try:
-                        # Invert the image (flip black and white)
-                        inverted = cv2.bitwise_not(gray)
-                        cv2.imwrite(f"{debug_dir}/inverted_{timestamp}.jpg", inverted)
-                        
-                        # Try with inverted image for regular detection
-                        inv_frame = cv2.cvtColor(inverted, cv2.COLOR_GRAY2BGR)
-                        inv_markers_frame, inv_corners, inv_ids = detect_aruco_markers(
-                            inv_frame,
-                            self.aruco_dict,
-                            self.aruco_params,
-                            self.camera_matrix,
-                            self.dist_coeffs
-                        )
-                        
-                        # If found markers in inverted image
-                        if inv_ids is not None and len(inv_ids) > 0:
-                            print(f"Found {len(inv_ids)} markers in inverted image!")
-                            corners = inv_corners
-                            ids = inv_ids
-                            markers_frame = inv_markers_frame
-                            cv2.imwrite(f"{debug_dir}/inverted_markers_{timestamp}.jpg", markers_frame)
-                    except Exception as e:
-                        print(f"Error during inverted image detection: {e}")
-                
-                # If still no markers found, try with different thresholding approaches
-                if ids is None or len(ids) == 0:
-                    print("Trying alternative thresholding approaches...")
+                    print("Standard detection found no markers, trying specialized CharucoBoard detection...")
                     
-                    # Try different thresholding methods
-                    thresholding_methods = [
-                        # Method 1: Adaptive Gaussian thresholding
-                        ("adaptive_gaussian", lambda img: cv2.adaptiveThreshold(
-                            img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)),
-                        
-                        # Method 2: Adaptive Mean thresholding
-                        ("adaptive_mean", lambda img: cv2.adaptiveThreshold(
-                            img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)),
-                        
-                        # Method 3: Otsu's thresholding
-                        ("otsu", lambda img: cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]),
-                        
-                        # Method 4: Simple global thresholding (mid-range)
-                        ("global_128", lambda img: cv2.threshold(img, 128, 255, cv2.THRESH_BINARY)[1])
-                    ]
-                    
-                    # Try each method
-                    for method_name, threshold_func in thresholding_methods:
-                        try:
-                            print(f"Trying {method_name} thresholding...")
+                    # Try different dictionary creation methods - critical for CharucoBoard
+                    try:
+                        # Force reset dictionary with all methods to find the right one
+                        dictionary_methods = [
+                            # Method 1: Dictionary constructor with markerSize (preferred for OpenCV 4.10+)
+                            lambda: cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6),
                             
-                            # Apply thresholding
-                            binary = threshold_func(gray)
-                            cv2.imwrite(f"{debug_dir}/{method_name}_{timestamp}.jpg", binary)
+                            # Method 2: getPredefinedDictionary (alternate approach)
+                            lambda: cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250),
                             
-                            # Convert back to color for detection
-                            binary_color = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+                            # Method 3: Dictionary_get (older OpenCV versions)
+                            lambda: cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250),
                             
-                            # Try detection on thresholded image
+                            # Method 4: Try with 4x4 dictionary instead (might work better with small markers)
+                            lambda: cv2.aruco.Dictionary(cv2.aruco.DICT_4X4_250, 4)
+                        ]
+                        
+                        # Try each dictionary method
+                        for dict_method in dictionary_methods:
                             try:
-                                thresh_markers_frame, thresh_corners, thresh_ids = detect_aruco_markers(
-                                    binary_color,
-                                    self.aruco_dict,
-                                    self.aruco_params,
-                                    self.camera_matrix,
-                                    self.dist_coeffs
-                                )
+                                # Create CharucoBoard with current dictionary method
+                                print(f"Trying CharucoBoard detection with alternate dictionary...")
+                                current_dict = dict_method()
                                 
-                                # If found markers
-                                if thresh_ids is not None and len(thresh_ids) > 0:
-                                    print(f"Found {len(thresh_ids)} markers with {method_name} thresholding!")
-                                    corners = thresh_corners
-                                    ids = thresh_ids
-                                    markers_frame = thresh_markers_frame
-                                    cv2.imwrite(f"{debug_dir}/{method_name}_markers_{timestamp}.jpg", markers_frame)
-                                    break  # Exit loop if found markers
+                                # Configure detection parameters specifically for CharucoBoard
+                                # Reduced validation constraints to help with embedded markers
+                                if hasattr(self.aruco_params, 'minMarkerPerimeterRate'):
+                                    self.aruco_params.minMarkerPerimeterRate = 0.01  # More relaxed than before
+                                if hasattr(self.aruco_params, 'errorCorrectionRate'):
+                                    self.aruco_params.errorCorrectionRate = 0.8  # Increase error correction for embedded markers
+                                
+                                # Create board - try different dimensions
+                                board_configs = [
+                                    (6, 6),   # Standard 6x6 CharucoBoard
+                                    (5, 7),   # Alternative dimensions
+                                    (7, 5)    # Alternative dimensions
+                                ]
+                                
+                                for squares_x, squares_y in board_configs:
+                                    print(f"Trying CharucoBoard with {squares_x}x{squares_y} configuration...")
+                                    # Calibration parameters
+                                    square_length = 0.3048/max(squares_x, squares_y)  # Scale based on board size
+                                    marker_length = square_length * 0.75  # 75% of square size
+                                    
+                                    try:
+                                        # Create CharucoBoard
+                                        board = cv2.aruco.CharucoBoard(
+                                            (squares_x, squares_y),
+                                            square_length,
+                                            marker_length,
+                                            current_dict
+                                        )
+                                        
+                                        # Create CharucoDetector with relaxed parameters
+                                        charuco_params = cv2.aruco.CharucoParameters()
+                                        # Attempt to set more permissive detection parameters
+                                        charuco_detector = cv2.aruco.CharucoDetector(board, charuco_params)
+                                        
+                                        # Detect the board
+                                        print("Detecting CharucoBoard...")
+                                        charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
+                                        
+                                        # If markers found
+                                        if marker_ids is not None and len(marker_ids) > 0:
+                                            print(f"CharucoBoard detection found {len(marker_ids)} markers with IDs: {marker_ids.flatten()}")
+                                            corners = marker_corners
+                                            ids = marker_ids
+                                            markers_frame = frame.copy()
+                                            cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
+                                            break  # Found markers, exit configuration loop
+                                        
+                                    except Exception as e:
+                                        print(f"Error with {squares_x}x{squares_y} configuration: {e}")
+                                
+                                # If we found markers, break out of dictionary loop too
+                                if ids is not None and len(ids) > 0:
+                                    break
+                                    
+                                # Try with inverted image
+                                inverted = cv2.bitwise_not(gray)
+                                try:
+                                    print("Trying with inverted image...")
+                                    charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(inverted)
+                                    
+                                    # If markers found
+                                    if marker_ids is not None and len(marker_ids) > 0:
+                                        print(f"CharucoBoard detection found {len(marker_ids)} markers in inverted image with IDs: {marker_ids.flatten()}")
+                                        corners = marker_corners
+                                        ids = marker_ids
+                                        markers_frame = frame.copy()
+                                        cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
+                                        break  # Found markers, exit dictionary loop
+                                except Exception as e:
+                                    print(f"Error with inverted image: {e}")
+                                
                             except Exception as e:
-                                print(f"Error during {method_name} detection: {e}")
-                                
-                            # Also try inverted version
-                            binary_inv = cv2.bitwise_not(binary)
-                            cv2.imwrite(f"{debug_dir}/{method_name}_inv_{timestamp}.jpg", binary_inv)
-                            binary_inv_color = cv2.cvtColor(binary_inv, cv2.COLOR_GRAY2BGR)
-                            
-                            try:
-                                inv_thresh_markers_frame, inv_thresh_corners, inv_thresh_ids = detect_aruco_markers(
-                                    binary_inv_color,
-                                    self.aruco_dict,
-                                    self.aruco_params,
-                                    self.camera_matrix,
-                                    self.dist_coeffs
-                                )
-                                
-                                # If found markers
-                                if inv_thresh_ids is not None and len(inv_thresh_ids) > 0:
-                                    print(f"Found {len(inv_thresh_ids)} markers with inverted {method_name} thresholding!")
-                                    corners = inv_thresh_corners
-                                    ids = inv_thresh_ids
-                                    markers_frame = inv_thresh_markers_frame
-                                    cv2.imwrite(f"{debug_dir}/{method_name}_inv_markers_{timestamp}.jpg", markers_frame)
-                                    break  # Exit loop if found markers
-                            except Exception as e:
-                                print(f"Error during inverted {method_name} detection: {e}")
-                                
-                        except Exception as e:
-                            print(f"Error applying {method_name} thresholding: {e}")
+                                print(f"Error with dictionary method: {e}")
+                        
+                    except Exception as e:
+                        print(f"Error during specialized CharucoBoard detection: {e}")
                 
-                # Debug detection results
+                # If still no markers found, try with direct ChArUco approach
+                if ids is None or len(ids) == 0:
+                    print("Still no markers detected, trying direct chessboard detection...")
+                    
+                    try:
+                        # The black squares might be detected without ArUco IDs - we can try to extract them
+                        # Find chessboard corners directly
+                        board_sizes = [(6, 6), (5, 7), (7, 5), (6, 7), (7, 6)]
+                        
+                        for pattern_size in board_sizes:
+                            print(f"Trying chessboard pattern with size {pattern_size}...")
+                            chessboard_found, corners_cb = cv2.findChessboardCorners(gray, pattern_size, None)
+                            
+                            if chessboard_found:
+                                print(f"Found chessboard pattern with size {pattern_size}!")
+                                
+                                # Create synthetic IDs for the black squares - assign sequential IDs
+                                # This might help with pose estimation even if we can't extract actual ArUco IDs
+                                synthetic_ids = []
+                                for i in range(len(corners_cb)):
+                                    synthetic_ids.append([i])  # Format like ArUco IDs
+                                
+                                # Convert to expected format
+                                synthetic_corners = []
+                                for corner in corners_cb:
+                                    # ArUco corners are in format [[[x, y]]] - add extra dimensions
+                                    synthetic_corners.append(np.array([corner], dtype=np.float32))
+                                
+                                # Use these synthetic results
+                                corners = synthetic_corners
+                                ids = np.array(synthetic_ids)
+                                markers_frame = frame.copy()
+                                
+                                # Draw the chessboard corners
+                                cv2.drawChessboardCorners(markers_frame, pattern_size, corners_cb, chessboard_found)
+                                
+                                print(f"Created {len(synthetic_ids)} synthetic marker IDs from chessboard detection")
+                                break
+                    except Exception as e:
+                        print(f"Error during direct chessboard detection: {e}")
+                
+                # Final output
                 if ids is not None and len(ids) > 0:
-                    print(f"Detection successful: found {len(ids)} markers: {ids.flatten()}")
-                    try:
-                        # Save final annotated image
-                        result_path = os.path.join(debug_dir, f"final_detection_{timestamp}.jpg")
-                        cv2.imwrite(result_path, markers_frame)
-                        print(f"Saved final detection image to {result_path}")
-                    except Exception as e:
-                        print(f"Warning: Could not save final detection image: {e}")
+                    print(f"Detection successful: found {len(ids)} markers with IDs: {ids.flatten()}")
                 else:
                     print("All detection methods failed, no markers found")
-                    # Save original frame for reference
-                    try:
-                        cv2.imwrite(f"{debug_dir}/failed_detection_{timestamp}.jpg", debug_frame)
-                    except Exception as e:
-                        print(f"Warning: Could not save failed detection frame: {e}")
                 
                 return markers_frame, corners, ids
             else:
