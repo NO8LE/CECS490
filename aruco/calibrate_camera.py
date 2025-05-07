@@ -95,45 +95,61 @@ except Exception as e:
     sys.exit(1)
 
 # Verify ArUco module is working
-try:
-    # Try to access a dictionary to verify ArUco is working
-    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-    print("ArUco module successfully loaded and verified (using Dictionary_get)")
-    # Store the method to use later
-    dictionary_method = "old"
-except Exception as e:
-    # If Dictionary_get fails, try the newer API
+# Check OpenCV version first to use the appropriate API
+if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    # For OpenCV 4.12.0-dev and newer
     try:
-        aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
-        print("ArUco module successfully loaded and verified (using Dictionary.get)")
+        # Create dictionary with marker size parameter
+        aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+        print(f"ArUco module successfully loaded for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
+        dictionary_method = "opencv4.12"
+    except Exception as e:
+        print(f"Error creating ArUco dictionary for OpenCV 4.12+: {str(e)}")
+        print("Please check your OpenCV installation and version.")
+        print(f"OpenCV version: {cv2.__version__}")
+        print(f"Build information: {cv2.getBuildInformation()}")
+        sys.exit(1)
+else:
+    # For older OpenCV versions
+    try:
+        # Try to access a dictionary to verify ArUco is working
+        aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+        print("ArUco module successfully loaded and verified (using Dictionary_get)")
         # Store the method to use later
-        dictionary_method = "new"
-    except Exception as e2:
-        # If both methods fail, try to create a dictionary directly
+        dictionary_method = "old"
+    except Exception as e:
+        # If Dictionary_get fails, try the newer API
         try:
-            # Try to create a dictionary directly (OpenCV 4.x approach)
-            aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
-            print("ArUco module successfully loaded and verified (using Dictionary.create)")
+            aruco_dict = cv2.aruco.Dictionary.get(cv2.aruco.DICT_6X6_250)
+            print("ArUco module successfully loaded and verified (using Dictionary.get)")
             # Store the method to use later
-            dictionary_method = "create"
-        except Exception as e3:
-            # Last resort: try to create a dictionary with parameters
+            dictionary_method = "new"
+        except Exception as e2:
+            # If both methods fail, try to create a dictionary directly
             try:
-                # Try to create a dictionary with parameters (another approach)
-                aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250)
-                print("ArUco module successfully loaded and verified (using Dictionary constructor)")
+                # Try to create a dictionary directly (OpenCV 4.x approach)
+                aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
+                print("ArUco module successfully loaded and verified (using Dictionary.create)")
                 # Store the method to use later
-                dictionary_method = "constructor"
-            except Exception as e4:
-                print(f"Error verifying ArUco module: {str(e4)}")
-                print("ArUco module found but not working correctly")
-                print("\nDetailed error information:")
-                print(f"Dictionary_get error: {str(e)}")
-                print(f"Dictionary.get error: {str(e2)}")
-                print(f"Dictionary.create error: {str(e3)}")
-                print(f"Dictionary constructor error: {str(e4)}")
-                print("\nPlease check your OpenCV installation and version.")
-                sys.exit(1)
+                dictionary_method = "create"
+            except Exception as e3:
+                # Last resort: try to create a dictionary with parameters
+                try:
+                    # Try to create a dictionary with parameters (another approach)
+                    aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250)
+                    print("ArUco module successfully loaded and verified (using Dictionary constructor)")
+                    # Store the method to use later
+                    dictionary_method = "constructor"
+                except Exception as e4:
+                    print(f"Error verifying ArUco module: {str(e4)}")
+                    print("ArUco module found but not working correctly")
+                    print("\nDetailed error information:")
+                    print(f"Dictionary_get error: {str(e)}")
+                    print(f"Dictionary.get error: {str(e2)}")
+                    print(f"Dictionary.create error: {str(e3)}")
+                    print(f"Dictionary constructor error: {str(e4)}")
+                    print("\nPlease check your OpenCV installation and version.")
+                    sys.exit(1)
 
 # Import DepthAI
 try:
@@ -202,38 +218,60 @@ def create_charuco_board(squares_x=8, squares_y=6, square_length=0.325, marker_l
     Returns:
         The CharucoBoard object
     """
-    # Get the ArUco dictionary
-    aruco_dict = get_aruco_dictionary(dictionary_id)
-    
-    # Create the CharucoBoard
-    try:
-        # Try the newer API first
-        board = cv2.aruco.CharucoBoard.create(
-            squaresX=squares_x,
-            squaresY=squares_y,
-            squareLength=square_length,
-            markerLength=marker_length,
-            dictionary=aruco_dict
-        )
-        print("Created CharucoBoard using CharucoBoard.create")
-        return board
-    except Exception as e:
+    # Check OpenCV version first to use the appropriate API
+    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        # For OpenCV 4.12.0-dev and newer
         try:
-            # Try the older API
-            board = cv2.aruco.CharucoBoard_create(
+            # Create dictionary with marker size parameter
+            aruco_dict = cv2.aruco.Dictionary(dictionary_id, 6)
+            
+            # Create CharucoBoard with the constructor
+            board = cv2.aruco.CharucoBoard(
+                (squares_x, squares_y),  # (squaresX, squaresY) as a tuple
+                square_length,  # squareLength
+                marker_length,  # markerLength
+                aruco_dict
+            )
+            print("Created CharucoBoard using CharucoBoard constructor for OpenCV 4.12+")
+            return board
+        except Exception as e:
+            print(f"Error creating CharucoBoard for OpenCV 4.12+: {str(e)}")
+            print("Please check your OpenCV installation and version.")
+            sys.exit(1)
+    else:
+        # For older OpenCV versions
+        # Get the ArUco dictionary
+        aruco_dict = get_aruco_dictionary(dictionary_id)
+        
+        # Create the CharucoBoard
+        try:
+            # Try the newer API first
+            board = cv2.aruco.CharucoBoard.create(
                 squaresX=squares_x,
                 squaresY=squares_y,
                 squareLength=square_length,
                 markerLength=marker_length,
                 dictionary=aruco_dict
             )
-            print("Created CharucoBoard using CharucoBoard_create")
+            print("Created CharucoBoard using CharucoBoard.create")
             return board
-        except Exception as e2:
-            print(f"Error creating CharucoBoard: {str(e)}")
-            print(f"Second error: {str(e2)}")
-            print("Please check your OpenCV installation and version.")
-            sys.exit(1)
+        except Exception as e:
+            try:
+                # Try the older API
+                board = cv2.aruco.CharucoBoard_create(
+                    squaresX=squares_x,
+                    squaresY=squares_y,
+                    squareLength=square_length,
+                    markerLength=marker_length,
+                    dictionary=aruco_dict
+                )
+                print("Created CharucoBoard using CharucoBoard_create")
+                return board
+            except Exception as e2:
+                print(f"Error creating CharucoBoard: {str(e)}")
+                print(f"Second error: {str(e2)}")
+                print("Please check your OpenCV installation and version.")
+                sys.exit(1)
 
 class CameraCalibrator:
     def __init__(self, calibration_type="charuco", charuco_params=None, chessboard_size=None, drone_mode=False):
@@ -702,35 +740,100 @@ class CameraCalibrator:
             print("- Try different angles and distances")
             return
         
-        # Perform calibration
-        try:
-            # Try the newer API first
-            ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
-                charucoCorners=corners_all,
-                charucoIds=ids_all,
-                board=self.board,
-                imageSize=img_size,
-                cameraMatrix=None,
-                distCoeffs=None
-            )
-            print("Calibration performed using calibrateCameraCharuco")
-        except Exception as e:
+        # Perform calibration - handle OpenCV 4.12+ differently
+        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
             try:
-                # Try the older API
-                ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
-                    corners_all,
-                    ids_all,
-                    self.board,
+                print("Using OpenCV 4.12+ calibration approach")
+                
+                # For OpenCV 4.12+, we need to use the CharucoDetector and calibrateCamera
+                # First, prepare object points for each detected corner
+                objPoints = []
+                imgPoints = []
+                
+                # For each frame
+                for frame_idx in range(len(corners_all)):
+                    frame_corners = corners_all[frame_idx]
+                    frame_ids = ids_all[frame_idx]
+                    
+                    # For each corner in this frame
+                    frame_obj_points = []
+                    frame_img_points = []
+                    
+                    for i in range(len(frame_corners)):
+                        # Get the corner ID
+                        corner_id = frame_ids[i][0]
+                        
+                        # Calculate 3D position based on square size
+                        # For a 6x6 board, there are 7 corners in each direction
+                        row = corner_id // 7
+                        col = corner_id % 7
+                        
+                        # Use the board's square size to calculate 3D position
+                        square_length = self.board.getSquareLength()
+                        frame_obj_points.append([col * square_length, row * square_length, 0])
+                        frame_img_points.append(frame_corners[i][0])
+                    
+                    # Add to the collection if we have enough points
+                    if len(frame_obj_points) >= 6:
+                        objPoints.append(np.array(frame_obj_points, dtype=np.float32))
+                        imgPoints.append(np.array(frame_img_points, dtype=np.float32))
+                
+                # Use standard camera calibration with the prepared points
+                ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+                    objPoints,
+                    imgPoints,
                     img_size,
                     None,
                     None
                 )
-                print("Calibration performed using calibrateCameraCharuco (older API)")
-            except Exception as e2:
-                print(f"Error during calibration: {str(e)}")
-                print(f"Second error: {str(e2)}")
-                print("Calibration failed. Please try again with a clearer CharucoBoard pattern.")
-                return
+                print("Calibration performed using cv2.calibrateCamera for OpenCV 4.12+")
+            except Exception as e:
+                print(f"Error during OpenCV 4.12+ calibration: {str(e)}")
+                print("Falling back to standard calibration approach")
+                try:
+                    # Try standard calibration as fallback
+                    ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+                        objPoints,
+                        imgPoints,
+                        img_size,
+                        None,
+                        None
+                    )
+                    print("Calibration performed using fallback cv2.calibrateCamera")
+                except Exception as e2:
+                    print(f"Fallback calibration also failed: {str(e2)}")
+                    print("Calibration failed. Please try again with a clearer CharucoBoard pattern.")
+                    return
+        else:
+            # For older OpenCV versions, use the traditional API
+            try:
+                # Try the newer API first
+                ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
+                    charucoCorners=corners_all,
+                    charucoIds=ids_all,
+                    board=self.board,
+                    imageSize=img_size,
+                    cameraMatrix=None,
+                    distCoeffs=None
+                )
+                print("Calibration performed using calibrateCameraCharuco")
+            except Exception as e:
+                try:
+                    # Try the older API
+                    ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.aruco.calibrateCameraCharuco(
+                        corners_all,
+                        ids_all,
+                        self.board,
+                        img_size,
+                        None,
+                        None
+                    )
+                    print("Calibration performed using calibrateCameraCharuco (older API)")
+                except Exception as e2:
+                    print(f"Error during calibration: {str(e)}")
+                    print(f"Second error: {str(e2)}")
+                    print("Calibration failed. Please try again with a clearer CharucoBoard pattern.")
+                    return
         
         if ret:
             # Save calibration data
