@@ -84,50 +84,32 @@ def run_detector():
                 if generation_dict_method is not None:
                     print(f"Using dictionary method from generation: {generation_dict_method}")
                     
-                    # Create the appropriate dictionary based on the generation method
-                    if generation_dict_method == "getPredefinedDictionary":
-                        try:
-                            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
-                            print("Using getPredefinedDictionary for detection")
-                        except Exception as e:
-                            print(f"Error using getPredefinedDictionary: {e}")
-                    elif generation_dict_method == "Dictionary_get":
-                        try:
-                            self.aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-                            print("Using Dictionary_get for detection")
-                        except Exception as e:
-                            print(f"Error using Dictionary_get: {e}")
-                    elif generation_dict_method == "Dictionary" or generation_dict_method == "constructor":
-                        try:
-                            self.aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
-                            print("Using Dictionary/constructor for detection")
-                        except Exception as e:
-                            print(f"Error using Dictionary constructor: {e}")
-                    elif generation_dict_method == "create" or generation_dict_method == "Dictionary.create":
-                        try:
-                            self.aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
-                            print("Using Dictionary.create for detection")
-                        except Exception as e:
-                            print(f"Error using Dictionary.create: {e}")
-                    elif generation_dict_method == "manual" or generation_dict_method == "text_fallback":
-                        # For manual or fallback methods, try multiple approaches
-                        print("Attempting multiple dictionary creation methods for manual/fallback markers")
+                    # Always use getPredefinedDictionary first since it works best with OpenCV 4.10
+                    try:
+                        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+                        print("Using getPredefinedDictionary for detection (primary method)")
+                    except Exception as e:
+                        print(f"Error using getPredefinedDictionary: {e}")
+                        
+                        # Fallback methods in order of preference
                         dictionary_created = False
                         
-                        # Try each method in sequence
+                        # Try Dictionary constructor with marker size
                         try:
                             self.aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
-                            print("Using Dictionary constructor for manual markers")
+                            print("Using Dictionary constructor with markerSize for detection (fallback 1)")
                             dictionary_created = True
                         except Exception as e1:
+                            # Try Dictionary_get
                             try:
-                                self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
-                                print("Using getPredefinedDictionary for manual markers")
+                                self.aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+                                print("Using Dictionary_get for detection (fallback 2)")
                                 dictionary_created = True
                             except Exception as e2:
+                                # Try Dictionary.create
                                 try:
-                                    self.aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
-                                    print("Using Dictionary_get for manual markers")
+                                    self.aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
+                                    print("Using Dictionary.create for detection (fallback 3)")
                                     dictionary_created = True
                                 except Exception as e3:
                                     print(f"Failed all dictionary creation methods: {e1}, {e2}, {e3}")
@@ -157,10 +139,10 @@ def run_detector():
                     self.aruco_params.adaptiveThreshWinSizeStep = 10
                     self.aruco_params.adaptiveThreshConstant = 7
                     
-                    # Critical validation parameters - more relaxed than original
-                    self.aruco_params.minMarkerPerimeterRate = 0.03  # More relaxed to detect smaller markers (fix script uses 0.01)
+                    # Critical validation parameters - much more relaxed to detect markers
+                    self.aruco_params.minMarkerPerimeterRate = 0.01  # Very relaxed to detect smaller markers
                     self.aruco_params.maxMarkerPerimeterRate = 4.0
-                    self.aruco_params.polygonalApproxAccuracyRate = 0.05
+                    self.aruco_params.polygonalApproxAccuracyRate = 0.1  # More relaxed for distorted markers
                     
                     # Corner refinement - important for accurate detection
                     if hasattr(self.aruco_params, 'cornerRefinementMethod'):
@@ -172,15 +154,15 @@ def run_detector():
                     
                     # Error correction is critical for proper detection in challenging conditions
                     if hasattr(self.aruco_params, 'errorCorrectionRate'):
-                        self.aruco_params.errorCorrectionRate = 0.6  # Default value from fix script
+                        self.aruco_params.errorCorrectionRate = 0.8  # Increased from 0.6 for better detection
                     
                     # Additional parameters from the fix script
                     if hasattr(self.aruco_params, 'minCornerDistanceRate'):
-                        self.aruco_params.minCornerDistanceRate = 0.05
+                        self.aruco_params.minCornerDistanceRate = 0.03  # Relaxed from 0.05
                     if hasattr(self.aruco_params, 'minDistanceToBorder'):
-                        self.aruco_params.minDistanceToBorder = 3
+                        self.aruco_params.minDistanceToBorder = 1  # Reduced from 3
                     if hasattr(self.aruco_params, 'minOtsuStdDev'):
-                        self.aruco_params.minOtsuStdDev = 5.0
+                        self.aruco_params.minOtsuStdDev = 3.0  # Reduced from 5.0
                         
                     print("Detection parameters configured successfully")
                 except Exception as e:

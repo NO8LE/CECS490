@@ -1298,8 +1298,16 @@ class OakDArUcoDetector:
             try:
                 # Make sure we have a detector
                 if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
-                    # Create detector on-the-fly if needed
-                    self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                    # Create detector on-the-fly if needed - use getPredefinedDictionary which works best with OpenCV 4.10
+                    try:
+                        self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                        print("Using getPredefinedDictionary for detection (primary method)")
+                    except Exception as e:
+                        print(f"Error with getPredefinedDictionary: {e}")
+                        # Fallback to Dictionary constructor
+                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                        print("Using Dictionary constructor with markerSize (fallback)")
+                    
                     self.aruco_params = cv2.aruco.DetectorParameters()
                     
                     # Configure detector parameters for better detection
@@ -1307,10 +1315,19 @@ class OakDArUcoDetector:
                     self.aruco_params.adaptiveThreshWinSizeMax = 23
                     self.aruco_params.adaptiveThreshWinSizeStep = 10
                     self.aruco_params.adaptiveThreshConstant = 7
-                    self.aruco_params.minMarkerPerimeterRate = 0.03
+                    self.aruco_params.minMarkerPerimeterRate = 0.01  # Reduced from 0.03 to detect smaller markers
                     self.aruco_params.maxMarkerPerimeterRate = 4.0
-                    self.aruco_params.polygonalApproxAccuracyRate = 0.05
+                    self.aruco_params.polygonalApproxAccuracyRate = 0.1  # Increased from 0.05 for better detection
                     self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+                    
+                    # Add error correction parameters
+                    self.aruco_params.errorCorrectionRate = 0.8  # Increased for better detection
+                    
+                    # Additional parameters for better detection
+                    if hasattr(self.aruco_params, 'minCornerDistanceRate'):
+                        self.aruco_params.minCornerDistanceRate = 0.03  # Relaxed from default
+                    if hasattr(self.aruco_params, 'minDistanceToBorder'):
+                        self.aruco_params.minDistanceToBorder = 1  # Reduced to detect markers near borders
                     
                     # Create detector
                     self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
@@ -1340,7 +1357,7 @@ class OakDArUcoDetector:
                         
                         # Check 1: Verify marker has a valid perimeter (minimum size)
                         perimeter = cv2.arcLength(marker_corners[0], True)
-                        min_perimeter = gray.shape[0] * 0.04  # At least 4% of image height
+                        min_perimeter = gray.shape[0] * 0.01  # Reduced from 4% to 1% of image height
                         
                         # Check 2: Verify corner angles (should be close to 90 degrees)
                         angles_valid = True
@@ -1366,7 +1383,8 @@ class OakDArUcoDetector:
                                 angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
                                 
                                 # In a perfect square, opposite corners should have angle close to 90 degrees
-                                if abs(angle - 90) > 35:  # Allow some deviation from 90 degrees
+                                # Much more relaxed angle validation (from 35 to 50 degrees deviation)
+                                if abs(angle - 90) > 50:
                                     angles_valid = False
                                     break
                             else:
@@ -1379,12 +1397,17 @@ class OakDArUcoDetector:
                         
                         if width > 0 and height > 0:
                             aspect_ratio = max(width/height, height/width)
-                            aspect_valid = aspect_ratio < 2.5  # Not too stretched
+                            aspect_valid = aspect_ratio < 4.0  # Increased from 2.5 to allow more distorted views
                         else:
                             aspect_valid = False
                         
                         # Consider the marker valid if it passes all checks
-                        if perimeter >= min_perimeter and angles_valid and aspect_valid:
+                        # For debugging, print information about the marker validation
+                        if marker_id < 10:  # Only print for markers with low IDs to avoid spam
+                            print(f"Marker ID {marker_id} validation: perimeter={perimeter:.1f} (min={min_perimeter:.1f}), angles_valid={angles_valid}, aspect_ratio={aspect_ratio:.2f} (valid={aspect_valid})")
+                        
+                        # More relaxed validation - only require perimeter check
+                        if perimeter >= min_perimeter:
                             valid_indices.append(i)
                             valid_corners.append(corners[i])
                             valid_ids.append(ids[i])
@@ -1432,8 +1455,15 @@ class OakDArUcoDetector:
                 if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
                     # For OpenCV 4.12+
                     try:
-                        # Create dictionary with marker size parameter
-                        charuco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                        # Create dictionary with getPredefinedDictionary (known to work with OpenCV 4.10)
+                        try:
+                            charuco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                            print("Using getPredefinedDictionary for CharucoBoard detection")
+                        except Exception as e:
+                            print(f"Error with getPredefinedDictionary for CharucoBoard: {e}")
+                            # Fallback to Dictionary constructor
+                            charuco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                            print("Using Dictionary constructor for CharucoBoard detection (fallback)")
                         
                         # Create CharucoBoard with the constructor
                         charuco_board = cv2.aruco.CharucoBoard(
