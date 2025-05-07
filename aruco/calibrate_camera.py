@@ -96,15 +96,15 @@ except Exception as e:
 
 # Verify ArUco module is working
 # Check OpenCV version first to use the appropriate API
-if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
     # For OpenCV 4.12.0-dev and newer
     try:
         # Create dictionary with marker size parameter
         aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
         print(f"ArUco module successfully loaded for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
-        dictionary_method = "opencv4.12"
+        dictionary_method = "opencv4.10_plus"
     except Exception as e:
-        print(f"Error creating ArUco dictionary for OpenCV 4.12+: {str(e)}")
+        print(f"Error creating ArUco dictionary for OpenCV 4.10+: {str(e)}")
         print("Please check your OpenCV installation and version.")
         print(f"OpenCV version: {cv2.__version__}")
         print(f"Build information: {cv2.getBuildInformation()}")
