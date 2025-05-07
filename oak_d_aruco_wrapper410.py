@@ -15,6 +15,7 @@ import sys
 import os
 import importlib
 import types
+import time
 
 # Global variable to track which dictionary method was used for marker generation
 # This will be imported from fix_aruco_opencv410
@@ -74,7 +75,7 @@ def run_detector():
             else:
                 gray = self.preprocess_image(frame)
             
-            # For OpenCV 4.10.0, use our enhanced detector
+        # For OpenCV 4.10.0, use our enhanced detector
             if cv2.__version__.startswith("4.10"):
                 # Print once which dictionary method is being used
                 print(f"Using enhanced ArUco detector for OpenCV 4.10.0")
@@ -96,8 +97,120 @@ def run_detector():
                             print("Using Dictionary_get for detection")
                         except Exception as e:
                             print(f"Error using Dictionary_get: {e}")
+                    elif generation_dict_method == "Dictionary" or generation_dict_method == "constructor":
+                        try:
+                            self.aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+                            print("Using Dictionary/constructor for detection")
+                        except Exception as e:
+                            print(f"Error using Dictionary constructor: {e}")
+                    elif generation_dict_method == "create" or generation_dict_method == "Dictionary.create":
+                        try:
+                            self.aruco_dict = cv2.aruco.Dictionary.create(cv2.aruco.DICT_6X6_250)
+                            print("Using Dictionary.create for detection")
+                        except Exception as e:
+                            print(f"Error using Dictionary.create: {e}")
+                    elif generation_dict_method == "manual" or generation_dict_method == "text_fallback":
+                        # For manual or fallback methods, try multiple approaches
+                        print("Attempting multiple dictionary creation methods for manual/fallback markers")
+                        dictionary_created = False
+                        
+                        # Try each method in sequence
+                        try:
+                            self.aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+                            print("Using Dictionary constructor for manual markers")
+                            dictionary_created = True
+                        except Exception as e1:
+                            try:
+                                self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+                                print("Using getPredefinedDictionary for manual markers")
+                                dictionary_created = True
+                            except Exception as e2:
+                                try:
+                                    self.aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+                                    print("Using Dictionary_get for manual markers")
+                                    dictionary_created = True
+                                except Exception as e3:
+                                    print(f"Failed all dictionary creation methods: {e1}, {e2}, {e3}")
+                        
+                        if not dictionary_created:
+                            print("WARNING: Could not create appropriate dictionary for detection!")
+                
+                # Configure detection parameters to match the fix script
+                print("Configuring optimal detection parameters...")
+                
+                # Backup original parameters in case we need to restore them
+                original_params = {}
+                if hasattr(self.aruco_params, 'adaptiveThreshWinSizeMin'):
+                    original_params['adaptiveThreshWinSizeMin'] = self.aruco_params.adaptiveThreshWinSizeMin
+                if hasattr(self.aruco_params, 'adaptiveThreshWinSizeMax'):
+                    original_params['adaptiveThreshWinSizeMax'] = self.aruco_params.adaptiveThreshWinSizeMax
+                if hasattr(self.aruco_params, 'adaptiveThreshWinSizeStep'):
+                    original_params['adaptiveThreshWinSizeStep'] = self.aruco_params.adaptiveThreshWinSizeStep
+                if hasattr(self.aruco_params, 'adaptiveThreshConstant'):
+                    original_params['adaptiveThreshConstant'] = self.aruco_params.adaptiveThreshConstant
+                
+                # Set parameters for optimal detection - match fix_aruco_opencv410 settings
+                try:
+                    # Critical detection parameters from fix_aruco_opencv410.py
+                    self.aruco_params.adaptiveThreshWinSizeMin = 3
+                    self.aruco_params.adaptiveThreshWinSizeMax = 23
+                    self.aruco_params.adaptiveThreshWinSizeStep = 10
+                    self.aruco_params.adaptiveThreshConstant = 7
+                    
+                    # Critical validation parameters - more relaxed than original
+                    self.aruco_params.minMarkerPerimeterRate = 0.03  # More relaxed to detect smaller markers (fix script uses 0.01)
+                    self.aruco_params.maxMarkerPerimeterRate = 4.0
+                    self.aruco_params.polygonalApproxAccuracyRate = 0.05
+                    
+                    # Corner refinement - important for accurate detection
+                    if hasattr(self.aruco_params, 'cornerRefinementMethod'):
+                        self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+                    if hasattr(self.aruco_params, 'cornerRefinementWinSize'):
+                        self.aruco_params.cornerRefinementWinSize = 5
+                    if hasattr(self.aruco_params, 'cornerRefinementMaxIterations'):
+                        self.aruco_params.cornerRefinementMaxIterations = 30
+                    
+                    # Error correction is critical for proper detection in challenging conditions
+                    if hasattr(self.aruco_params, 'errorCorrectionRate'):
+                        self.aruco_params.errorCorrectionRate = 0.6  # Default value from fix script
+                    
+                    # Additional parameters from the fix script
+                    if hasattr(self.aruco_params, 'minCornerDistanceRate'):
+                        self.aruco_params.minCornerDistanceRate = 0.05
+                    if hasattr(self.aruco_params, 'minDistanceToBorder'):
+                        self.aruco_params.minDistanceToBorder = 3
+                    if hasattr(self.aruco_params, 'minOtsuStdDev'):
+                        self.aruco_params.minOtsuStdDev = 5.0
+                        
+                    print("Detection parameters configured successfully")
+                except Exception as e:
+                    print(f"Warning: Failed to set detection parameters: {e}")
+                    print("Falling back to original parameters")
+                    
+                    # Restore original parameters
+                    for param, value in original_params.items():
+                        try:
+                            setattr(self.aruco_params, param, value)
+                        except:
+                            pass
+                            
+                # Enable debugging - output shape of input frame
+                print(f"Input frame shape: {frame.shape}")
+                
+                # If a detector already exists, ensure it's configured correctly
+                if hasattr(self, 'aruco_detector') and self.aruco_detector is not None:
+                    try:
+                        print("Reconfiguring existing ArucoDetector with optimized dictionary and parameters")
+                        # Create a new detector with our configured parameters
+                        self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+                    except Exception as e:
+                        print(f"Warning: Could not reconfigure ArucoDetector: {e}")
+                
+                # Save a copy of the input frame for diagnostics if needed
+                debug_frame = frame.copy()
                 
                 # Use our enhanced detector
+                print("Calling enhanced detect_aruco_markers function...")
                 markers_frame, corners, ids = detect_aruco_markers(
                     frame,
                     self.aruco_dict,
@@ -105,6 +218,39 @@ def run_detector():
                     self.camera_matrix,
                     self.dist_coeffs
                 )
+                
+                # Debug detection results
+                if ids is not None and len(ids) > 0:
+                    print(f"Enhanced detector found {len(ids)} markers: {ids.flatten()}")
+                    
+                    # Save a diagnostic image showing the detected markers
+                    try:
+                        # Timestamp for unique filenames
+                        timestamp = int(time.time())
+                        # Ensure debug directory exists
+                        debug_dir = "debug_images"
+                        os.makedirs(debug_dir, exist_ok=True)
+                        # Save the annotated frame
+                        debug_path = os.path.join(debug_dir, f"detected_markers_{timestamp}.jpg")
+                        cv2.imwrite(debug_path, markers_frame)
+                        print(f"Saved debug image to {debug_path}")
+                    except Exception as e:
+                        print(f"Warning: Could not save debug image: {e}")
+                else:
+                    print("Enhanced detector found no markers")
+                    
+                    # If detection failed, save the raw frame for analysis
+                    try:
+                        # Only save occasionally to avoid filling disk
+                        if np.random.random() < 0.1:  # 10% chance
+                            timestamp = int(time.time())
+                            debug_dir = "debug_images"
+                            os.makedirs(debug_dir, exist_ok=True)
+                            debug_path = os.path.join(debug_dir, f"failed_detection_{timestamp}.jpg")
+                            cv2.imwrite(debug_path, debug_frame)
+                            print(f"Saved failed detection frame to {debug_path}")
+                    except Exception as e:
+                        print(f"Warning: Could not save failed detection frame: {e}")
                 
                 return markers_frame, corners, ids
             else:
