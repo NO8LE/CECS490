@@ -16,6 +16,9 @@ import numpy as np
 import os
 import sys
 
+# Global variable to track which dictionary method was used for marker generation
+generation_dict_method = None
+
 def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, dist_coeffs=None):
     """
     Enhanced ArUco marker detection for OpenCV 4.10.0
@@ -66,6 +69,12 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
     # Detect markers
     corners, ids, rejected = detector.detectMarkers(gray)
     
+    # Print initial detection results
+    if ids is not None:
+        print(f"Initial detection found {len(ids)} markers with IDs: {ids.flatten()}")
+    else:
+        print("Initial detection found no markers")
+    
     # Handle different corner formats
     if ids is not None and len(ids) > 0:
         # Ensure corners is a list of arrays with shape (1, 4, 2)
@@ -88,9 +97,13 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
             marker_id = ids[i][0]
             marker_corners = corners[i]
             
+            # Print raw detection info for debugging
+            print(f"Raw detection - Marker {i}: ID={marker_id}, Corners shape={marker_corners.shape}")
+            
             # 1. Verify marker has a valid perimeter (minimum size)
             perimeter = cv2.arcLength(marker_corners[0], True)
             min_perimeter = gray.shape[0] * 0.01  # Reduced to 1% of image height
+            perimeter_valid = perimeter >= min_perimeter
             
             # 2. Verify marker is roughly square (with more tolerance)
             width = np.linalg.norm(marker_corners[0][0] - marker_corners[0][1])
@@ -100,9 +113,15 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
                 aspect_valid = 0.5 < aspect_ratio < 2.0  # More tolerant aspect ratio
             else:
                 aspect_valid = False
+                
+            # Print validation details for debugging
+            print(f"  Validation - Perimeter: {perimeter:.2f} (min: {min_perimeter:.2f}, valid: {perimeter_valid})")
+            print(f"  Validation - Aspect ratio: {aspect_ratio:.2f} (valid: {aspect_valid})")
             
             # 3. Verify corner angles with more tolerance
             angles_valid = True
+            angles = []
+            
             for j in range(4):
                 p1 = marker_corners[0][j]
                 p2 = marker_corners[0][(j+1) % 4]
@@ -123,6 +142,7 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
                     # Limit to valid range due to numerical errors
                     cos_angle = max(-1.0, min(1.0, cos_angle))
                     angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
+                    angles.append(angle)
                     
                     # More tolerant angle threshold
                     if abs(angle - 90) > 40:  # Increased from 25 to 40
@@ -130,13 +150,23 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
                         break
                 else:
                     angles_valid = False
+                    angles.append(0)  # Invalid angle
                     break
             
+            # Print angle validation details
+            print(f"  Validation - Angles: {[f'{a:.1f}' for a in angles]} (valid: {angles_valid})")
+            
             # Add to valid markers if it passes all tests
-            if perimeter >= min_perimeter and aspect_valid and angles_valid:
+            validation_passed = perimeter_valid and aspect_valid and angles_valid
+            print(f"  Overall validation result: {validation_passed}")
+            
+            if validation_passed:
                 valid_indices.append(i)
                 valid_corners.append(corners[i])
                 valid_ids.append(ids[i])
+                print(f"  Marker {i} with ID {marker_id} passed validation")
+            else:
+                print(f"  Marker {i} with ID {marker_id} failed validation")
         
         # Update with validated markers only
         if len(valid_indices) > 0:
@@ -275,6 +305,10 @@ def create_test_image(width=640, height=480):
         
         # Method 1: Using getPredefinedDictionary and generateImageMarker (OpenCV 4.10+)
         try:
+            # Get a predefined dictionary - store this for later use in detection
+            global generation_dict_method
+            generation_dict_method = "getPredefinedDictionary"
+            
             # Get a predefined dictionary
             aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
             # Generate marker image directly with the function
@@ -288,6 +322,9 @@ def create_test_image(width=640, height=480):
         if not success:
             try:
                 # Try using Dictionary_get
+                global generation_dict_method
+                generation_dict_method = "Dictionary_get"
+                
                 aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
                 marker_img = cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size)
                 success = True
@@ -298,6 +335,9 @@ def create_test_image(width=640, height=480):
         # Method 3: Try with our original Dictionary constructor
         if not success:
             try:
+                global generation_dict_method
+                generation_dict_method = "Dictionary"
+                
                 aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
                 marker_img = cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size)
                 success = True
@@ -308,6 +348,9 @@ def create_test_image(width=640, height=480):
         # Method 4: Try creating a marker manually based on the ArUco pattern
         if not success:
             try:
+                global generation_dict_method
+                generation_dict_method = "manual"
+                
                 # Create a blank white image
                 marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
                 
@@ -340,6 +383,9 @@ def create_test_image(width=640, height=480):
         
         # Fallback method: Create a simple visual marker with text
         if not success or marker_img is None:
+            global generation_dict_method
+            generation_dict_method = "text_fallback"
+            
             print(f"All methods failed for marker ID {marker_id}, using text fallback")
             marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
             # Draw a black square border
@@ -430,8 +476,21 @@ if __name__ == "__main__":
     # Verify image dimensions
     print(f"Image dimensions: {img.shape}")
     
-    # Create dictionary
-    aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+    # Create dictionary - use the same method that was successful for marker generation
+    try:
+        # Check if we have a global variable indicating which method worked for generation
+        if 'generation_dict_method' in globals() and generation_dict_method == "getPredefinedDictionary":
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+            print("Using getPredefinedDictionary for detection (same as generation)")
+        else:
+            # Fallback to Dictionary constructor
+            aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+            print("Using Dictionary constructor for detection")
+    except Exception as e:
+        print(f"Error creating dictionary: {e}")
+        # Fallback to Dictionary constructor
+        aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+        print("Using Dictionary constructor for detection (fallback)")
     
     # Create parameters
     aruco_params = cv2.aruco.DetectorParameters()
