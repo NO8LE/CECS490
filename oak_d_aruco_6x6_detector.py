@@ -117,8 +117,8 @@ except ImportError:
 
 # Verify ArUco module is working
 try:
-    # For OpenCV 4.10.0 and newer, try using the new API with marker size parameter
-    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    # For OpenCV 4.10.0, use the new API with marker size parameter
+    if cv2.__version__.startswith("4.10"):
         # Create a dictionary with the required marker size parameter
         ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
         aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
@@ -408,14 +408,14 @@ class OakDArUcoDetector:
                 # Store the method for reference
                 dictionary_method = "opencv4.10_detector"
             except Exception as e:
-                print(f"Error initializing ArUco detector for OpenCV 4.12+: {e}")
+                print(f"Error initializing ArUco detector for OpenCV 4.10: {e}")
                 print("Falling back to basic initialization")
                 
                 # Basic initialization as fallback
                 self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
                 self.aruco_params = cv2.aruco.DetectorParameters()
                 self.aruco_detector = None
-                dictionary_method = "basic_opencv4.12"
+                dictionary_method = "basic_opencv4.10"
         else:
             # For older OpenCV versions, use the method that worked during initialization
             if dictionary_method == "old":
@@ -443,18 +443,14 @@ class OakDArUcoDetector:
                                 print(f"All dictionary creation methods failed: {e}")
                                 sys.exit(1)
         
-        # Initialize detector parameters for OpenCV 4.10
-        if cv2.__version__.startswith("4.10"):
-            try:
-                # For OpenCV 4.10.0
-                self.aruco_params = cv2.aruco.DetectorParameters()
-                print("Using cv2.aruco.DetectorParameters() for OpenCV 4.10")
-            except Exception as e:
-                print(f"Error creating detector parameters for OpenCV 4.10: {str(e)}")
-                print("Using None for parameters")
-                self.aruco_params = None
-        else:
-            # For other OpenCV versions
+        # Initialize detector parameters specifically for OpenCV 4.10
+        try:
+            # For OpenCV 4.10.0
+            self.aruco_params = cv2.aruco.DetectorParameters()
+            print("Using cv2.aruco.DetectorParameters() for OpenCV 4.10")
+        except Exception as e:
+            print(f"Error creating detector parameters for OpenCV 4.10: {str(e)}")
+            # Try alternative methods
             try:
                 self.aruco_params = cv2.aruco.DetectorParameters.create()
                 print("Using cv2.aruco.DetectorParameters.create()")
@@ -1336,7 +1332,7 @@ class OakDArUcoDetector:
                 corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
                 
                 # Convert corners to the format expected by the rest of the code
-                # In OpenCV 4.12+, corners might be returned in a different format
+                # In OpenCV 4.10, corners might be returned in a different format
                 if ids is not None and len(ids) > 0:
                     # Ensure corners is a list of arrays with shape (1, 4, 2)
                     if not isinstance(corners, list):
@@ -1416,7 +1412,7 @@ class OakDArUcoDetector:
                     if len(valid_indices) > 0:
                         corners = valid_corners
                         ids = np.array(valid_ids)
-                        print(f"Detected {len(ids)} valid markers out of {len(corners_list)} candidates using OpenCV 4.8+ ArucoDetector API")
+                        print(f"Detected {len(ids)} valid markers out of {len(corners_list)} candidates using OpenCV 4.10 ArucoDetector API")
                     else:
                         # No valid markers found
                         corners = []
@@ -1473,7 +1469,7 @@ class OakDArUcoDetector:
                             charuco_dict
                         )
                         
-                        # For OpenCV 4.12+, we need to use the CharucoDetector
+                        # For OpenCV 4.10, we need to use the CharucoDetector
                         charuco_params = cv2.aruco.CharucoParameters()
                         charuco_detector = cv2.aruco.CharucoDetector(charuco_board, charuco_params)
                         
@@ -1599,10 +1595,10 @@ class OakDArUcoDetector:
                             dictionary=self.aruco_dict
                         )
                     
-                    # Estimate the pose of the CharucoBoard - handle OpenCV 4.12+ differently
-                    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+                    # Estimate the pose of the CharucoBoard for OpenCV 4.10
+                    if cv2.__version__.startswith("4.10"):
                         try:
-                            # For OpenCV 4.12+, we need to use solvePnP directly
+                            # For OpenCV 4.10, we need to use solvePnP directly
                             # Create object points from the CharucoBoard
                             objPoints = []
                             imgPoints = []
@@ -1652,7 +1648,7 @@ class OakDArUcoDetector:
                     
                     if retval:
                         # Draw the CharucoBoard axes
-                        # Try to use drawAxis - handle API changes in OpenCV 4.12+
+                        # Try to use drawAxis for OpenCV 4.10
                         try:
                             cv2.aruco.drawAxis(
                                 markers_frame,
@@ -1663,7 +1659,7 @@ class OakDArUcoDetector:
                                 0.2  # Larger axis length for the board
                             )
                         except AttributeError:
-                            # Fallback for OpenCV 4.12+ where drawAxis might be moved
+                            # Fallback for OpenCV 4.10 where drawAxis might be moved
                             try:
                                 # Try using cv2.drawFrameAxes instead (newer OpenCV versions)
                                 cv2.drawFrameAxes(
@@ -1712,9 +1708,9 @@ class OakDArUcoDetector:
             try:
                 # Ensure we have valid calibration data
                 if self.camera_matrix is not None and self.dist_coeffs is not None:
-                    # Handle API changes in OpenCV 4.8+ and 4.12+
-                    if cv2.__version__.startswith("4.8"):
-                        # For OpenCV 4.8.0, use solvePnP approach as the API changed
+                    # Handle API changes in OpenCV 4.10
+                    if cv2.__version__.startswith("4.10"):
+                        # For OpenCV 4.10, use solvePnP approach as the API changed
                         rvecs = []
                         tvecs = []
                         
@@ -1760,7 +1756,7 @@ class OakDArUcoDetector:
                                 self.dist_coeffs
                             )
                         except AttributeError:
-                            # For OpenCV 4.12+, try alternative approach
+                            # For OpenCV 4.10, try alternative approach
                             try:
                                 # Create temporary arrays to store results
                                 rvecs = []
@@ -1825,7 +1821,7 @@ class OakDArUcoDetector:
                                     smooth_factor = 0.7  # Higher values mean less smoothing
                                     rvecs[i] = smooth_factor * rvecs[i] + (1 - smooth_factor) * self.prev_rvecs[i]
                                 
-                                # Try to use drawAxis - handle API changes in OpenCV 4.12+
+                                # Try to use drawAxis - handle API changes in OpenCV 4.10
                                 try:
                                     cv2.aruco.drawAxis(
                                         markers_frame,
@@ -1836,7 +1832,7 @@ class OakDArUcoDetector:
                                         axis_length
                                     )
                                 except AttributeError:
-                                    # Fallback for OpenCV 4.12+ where drawAxis might be moved
+                                    # Fallback for OpenCV 4.10 where drawAxis might be moved
                                     try:
                                         # Try using cv2.drawFrameAxes instead (newer OpenCV versions)
                                         cv2.drawFrameAxes(
