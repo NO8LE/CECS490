@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 """
-Enhanced ArUco detector for OpenCV 4.8.0
+Enhanced ArUco detector for OpenCV 4.10.0
 
 This script provides a specialized implementation for detecting ArUco markers
-with OpenCV 4.8.0, which has API changes compared to 4.5.5. It includes:
+with OpenCV 4.10.0, which has API changes compared to 4.5.5. It includes:
 1. Stricter filtering to prevent false positives
 2. Custom parameter configurations
 3. Post-detection validation to ensure markers are valid
-4. Fixed pose estimation for OpenCV 4.8.0
+4. Fixed pose estimation for OpenCV 4.10.0
 """
 
 import cv2
@@ -16,9 +16,9 @@ import numpy as np
 
 def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, dist_coeffs=None):
     """
-    Enhanced ArUco marker detection for OpenCV 4.8.0
+    Enhanced ArUco marker detection for OpenCV 4.10.0
     
-    This function handles the API changes in OpenCV 4.8.0 and adds additional
+    This function handles the API changes in OpenCV 4.10.0 and adds additional
     validation to prevent false positives.
     
     Args:
@@ -36,7 +36,7 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
     # Convert to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    # Set detection parameters for OpenCV 4.8.0
+    # Set detection parameters for OpenCV 4.10.0
     # These are critical to prevent false positives
     aruco_params.adaptiveThreshWinSizeMin = 3
     aruco_params.adaptiveThreshWinSizeMax = 23
@@ -50,7 +50,7 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
     aruco_params.minOtsuStdDev = 5.0  # Filters out low-contrast regions
     aruco_params.errorCorrectionRate = 0.8  # Higher than default (0.6)
     
-    # Create detector (OpenCV 4.7.0+)
+    # Create detector (OpenCV 4.10.0 uses ArucoDetector)
     detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
     
     # Detect markers
@@ -147,45 +147,87 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
         
         # Estimate pose if camera is calibrated
         if camera_matrix is not None and dist_coeffs is not None:
-            # OpenCV 4.8.0 requires solvePnP approach instead of estimatePoseSingleMarkers
-            rvecs = []
-            tvecs = []
-            
-            # Process each marker individually
-            marker_size = 0.3048  # 12 inches in meters - adjust as needed
-            for i in range(len(corners)):
-                # Create object points for a square marker
-                objPoints = np.array([
-                    [-marker_size/2, marker_size/2, 0],
-                    [marker_size/2, marker_size/2, 0],
-                    [marker_size/2, -marker_size/2, 0],
-                    [-marker_size/2, -marker_size/2, 0]
-                ], dtype=np.float32)
-                
-                # Get image points from corners
-                imgPoints = corners[i][0].astype(np.float32)
-                
-                # Use solvePnP to get pose
-                success, rvec, tvec = cv2.solvePnP(
-                    objPoints,
-                    imgPoints,
+            # OpenCV 4.10.0 requires us to handle pose estimation differently
+            # In 4.10, we can still use estimatePoseSingleMarkers but with different format
+            try:
+                # First try standard approach for 4.10
+                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                    corners,
+                    0.3048,  # 12 inches in meters (marker size)
                     camera_matrix,
                     dist_coeffs
                 )
                 
-                if success:
-                    rvecs.append(rvec)
-                    tvecs.append(tvec)
+                # Draw axes for each marker
+                for i in range(len(ids)):
+                    # Draw axes for the marker
+                    try:
+                        # First try cv2.aruco.drawAxis
+                        cv2.aruco.drawAxis(
+                            markers_frame,
+                            camera_matrix,
+                            dist_coeffs,
+                            rvecs[i],
+                            tvecs[i],
+                            0.1  # Axis length
+                        )
+                    except Exception:
+                        # If that fails, try cv2.drawFrameAxes
+                        cv2.drawFrameAxes(
+                            markers_frame,
+                            camera_matrix,
+                            dist_coeffs,
+                            rvecs[i],
+                            tvecs[i],
+                            0.1  # Axis length
+                        )
                     
-                    # Draw axis for each marker
-                    cv2.drawFrameAxes(
-                        markers_frame,
+            except Exception as e:
+                print(f"Error with estimatePoseSingleMarkers: {e}")
+                print("Falling back to manual pose estimation")
+                
+                # Fallback to manual solvePnP approach
+                rvecs = []
+                tvecs = []
+                
+                # Process each marker individually
+                marker_size = 0.3048  # 12 inches in meters
+                for i in range(len(corners)):
+                    # Create object points for a square marker
+                    objPoints = np.array([
+                        [-marker_size/2, marker_size/2, 0],
+                        [marker_size/2, marker_size/2, 0],
+                        [marker_size/2, -marker_size/2, 0],
+                        [-marker_size/2, -marker_size/2, 0]
+                    ], dtype=np.float32)
+                    
+                    # Get image points from corners
+                    imgPoints = corners[i][0].astype(np.float32)
+                    
+                    # Use solvePnP to get pose
+                    success, rvec, tvec = cv2.solvePnP(
+                        objPoints,
+                        imgPoints,
                         camera_matrix,
-                        dist_coeffs,
-                        rvec,
-                        tvec,
-                        0.1  # Axis length
+                        dist_coeffs
                     )
+                    
+                    if success:
+                        rvecs.append(rvec)
+                        tvecs.append(tvec)
+                        
+                        # Draw axis for the marker
+                        try:
+                            cv2.drawFrameAxes(
+                                markers_frame,
+                                camera_matrix,
+                                dist_coeffs,
+                                rvec,
+                                tvec,
+                                0.1  # Axis length
+                            )
+                        except Exception as e2:
+                            print(f"Could not draw axes: {e2}")
     
     return markers_frame, corners, ids
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Wrapper script to integrate the enhanced ArUco detector for OpenCV 4.8.0
+Wrapper script to integrate the enhanced ArUco detector for OpenCV 4.10.0
 with the main OAK-D ArUco detector.
 
 This script bridges the original OAK-D ArUco detector with the enhanced
-detector implementation that properly handles OpenCV 4.8.0 API changes
+detector implementation that properly handles OpenCV 4.10.0 API changes
 and adds additional validation to prevent false positives.
 """
 
@@ -16,15 +16,15 @@ import os
 
 # Import our enhanced detector
 try:
-    from fix_aruco_opencv48 import detect_aruco_markers
-    print("Enhanced ArUco detector for OpenCV 4.8.0 loaded successfully")
+    from fix_aruco_opencv410 import detect_aruco_markers
+    print("Enhanced ArUco detector for OpenCV 4.10.0 loaded successfully")
 except ImportError:
-    print("Error: Could not import enhanced ArUco detector. Make sure fix_aruco_opencv48.py is in the same directory.")
+    print("Error: Could not import enhanced ArUco detector. Make sure fix_aruco_opencv410.py is in the same directory.")
     sys.exit(1)
 
 def run_detector():
     """
-    Run the OAK-D ArUco detector with OpenCV 4.8.0 compatibility
+    Run the OAK-D ArUco detector with OpenCV 4.10.0 compatibility
     
     This function executes the original detector script with the enhanced
     ArUco detection implementation.
@@ -46,7 +46,7 @@ def run_detector():
         except Exception as e:
             print(f"Warning: Could not create backup: {e}")
     
-    print("Running OAK-D ArUco detector with OpenCV 4.8.0 compatibility...")
+    print("Running OAK-D ArUco detector with OpenCV 4.10.0 compatibility...")
     print("=" * 50)
     
     # Dynamically patch the detect_aruco_markers function at runtime
@@ -58,7 +58,7 @@ def run_detector():
         Patched version of detect_aruco_markers function
         
         This function replaces the original implementation with our enhanced
-        version that properly handles OpenCV 4.8.0 API changes.
+        version that properly handles OpenCV 4.10.0 API changes.
         """
         # Preprocess image - don't use CLAHE in simple mode (faster)
         if simple_detection:
@@ -67,9 +67,9 @@ def run_detector():
             gray = self.preprocess_image(frame)
         
         # Check OpenCV version to decide which detector to use
-        if cv2.__version__.startswith("4.8"):
-            print("Using enhanced ArUco detector for OpenCV 4.8.0")
-            # Use the enhanced detector for OpenCV 4.8.0
+        if cv2.__version__.startswith("4.10"):
+            print("Using enhanced ArUco detector for OpenCV 4.10.0")
+            # Use the enhanced detector for OpenCV 4.10.0
             markers_frame, corners, ids = detect_aruco_markers(
                 frame, 
                 self.aruco_dict, 
@@ -103,8 +103,8 @@ if __name__ == "__main__":
     # Check if running the correct version of OpenCV
     print(f"OpenCV version: {cv2.__version__}")
     
-    if not cv2.__version__.startswith("4.8"):
-        print("Warning: This wrapper is designed for OpenCV 4.8.x")
+    if not cv2.__version__.startswith("4.10"):
+        print("Warning: This wrapper is designed for OpenCV 4.10.x")
         print(f"Current version: {cv2.__version__}")
         response = input("Continue anyway? (y/n): ")
         if response.lower() != 'y':

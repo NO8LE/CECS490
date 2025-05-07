@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 """
-Test script for the ArUco OpenCV 4.8.0 compatibility fix.
+Test script for the ArUco OpenCV 4.10.0 compatibility fix.
 
 This script creates a synthetic test image with ArUco markers and tests
 the enhanced detection algorithm to verify it correctly identifies 
 markers and rejects false positives.
 
 Usage:
-  python3 test_aruco_fix.py
+  python3 test_aruco_fix410.py
 
 This will create a synthetic test image, run both the original and enhanced
 detectors, and show the results side by side.
@@ -21,11 +21,11 @@ import sys
 
 # Try to import the enhanced detector
 try:
-    from fix_aruco_opencv48 import detect_aruco_markers
-    print("Enhanced ArUco detector imported successfully")
+    from fix_aruco_opencv410 import detect_aruco_markers
+    print("Enhanced ArUco detector for OpenCV 4.10.0 imported successfully")
 except ImportError:
     print("Error: Could not import enhanced ArUco detector.")
-    print("Make sure fix_aruco_opencv48.py is in the same directory.")
+    print("Make sure fix_aruco_opencv410.py is in the same directory.")
     sys.exit(1)
 
 def create_test_image(width=1280, height=720):
@@ -100,7 +100,7 @@ def test_original_detector(image):
     # Create a dictionary for ArUco markers
     aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
     
-    # Create detector parameters
+    # Create detector parameters with default values
     params = cv2.aruco.DetectorParameters()
     
     # Create detector
@@ -140,8 +140,8 @@ def test_enhanced_detector(image):
 def main():
     print(f"OpenCV version: {cv2.__version__}")
     
-    if not cv2.__version__.startswith("4.8"):
-        print("Warning: This test is designed for OpenCV 4.8.x")
+    if not cv2.__version__.startswith("4.10"):
+        print("Warning: This test is designed for OpenCV 4.10.x")
         print(f"Current version: {cv2.__version__}")
         response = input("Continue anyway? (y/n): ")
         if response.lower() != 'y':
@@ -156,11 +156,11 @@ def main():
     print("Test image saved as 'aruco_test_image.jpg'")
     
     # Test original detector (may show false positives)
-    print("\nTesting original OpenCV detector...")
+    print("\nTesting original OpenCV 4.10.0 detector...")
     original_result = test_original_detector(test_img)
     
     # Test enhanced detector (should filter out false positives)
-    print("\nTesting enhanced detector...")
+    print("\nTesting enhanced detector for OpenCV 4.10.0...")
     enhanced_result = test_enhanced_detector(test_img)
     
     # Display results side by side if not in headless mode
