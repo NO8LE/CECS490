@@ -287,22 +287,37 @@ if __name__ == "__main__":
     
     # Check if test image exists, if not create a synthetic one
     test_image_path = "test_image.jpg"
+    img = None  # Initialize img to None
+    
     if os.path.exists(test_image_path):
         print(f"Loading test image from {test_image_path}")
         img = cv2.imread(test_image_path)
         if img is None:
             print(f"Error loading {test_image_path}, creating synthetic test image instead")
             img = create_test_image()
+            # Verify the synthetic image was created
+            if img is not None:
+                print("Successfully created synthetic test image")
     else:
         print(f"Test image {test_image_path} not found, creating synthetic test image")
         img = create_test_image()
-        # Save the test image for future use
-        cv2.imwrite(test_image_path, img)
-        print(f"Saved synthetic test image to {test_image_path}")
+        # Verify the synthetic image was created
+        if img is not None:
+            print("Successfully created synthetic test image")
+            # Save the test image for future use
+            try:
+                cv2.imwrite(test_image_path, img)
+                print(f"Saved synthetic test image to {test_image_path}")
+            except Exception as e:
+                print(f"Warning: Could not save synthetic test image: {e}")
     
+    # Double-check that we have a valid image before proceeding
     if img is None:
         print("Error: Could not create or load test image")
         sys.exit(1)
+        
+    # Verify image dimensions
+    print(f"Image dimensions: {img.shape}")
     
     # Create dictionary
     aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
