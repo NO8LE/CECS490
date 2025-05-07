@@ -13,6 +13,8 @@ with OpenCV 4.10.0, which has API changes compared to 4.5.5. It includes:
 
 import cv2
 import numpy as np
+import os
+import sys
 
 def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, dist_coeffs=None):
     """
@@ -231,10 +233,76 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
     
     return markers_frame, corners, ids
 
+def create_test_image(width=640, height=480):
+    """Create a synthetic test image with ArUco markers"""
+    # Create a base image
+    img = np.ones((height, width, 3), dtype=np.uint8) * 240
+    
+    # Add some background noise to make detection more challenging
+    noise = np.random.randint(0, 30, (height, width, 3), dtype=np.uint8)
+    img = cv2.add(img, noise)
+    
+    # Create a dictionary for ArUco markers
+    aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+    
+    # Create and add actual ArUco markers
+    marker_size = 100
+    
+    # Create markers with different IDs and positions
+    for i, position in enumerate([
+        (width//4, height//4),          # Top-left
+        (width*3//4, height//4),        # Top-right
+        (width//2, height//2),          # Center
+    ]):
+        # Create a marker image
+        marker_id = i
+        marker_img = aruco_dict.drawMarker(marker_id, marker_size)
+        
+        # Convert to RGB
+        marker_rgb = cv2.cvtColor(marker_img, cv2.COLOR_GRAY2BGR)
+        
+        # Calculate position to place marker
+        x, y = position
+        x = x - marker_size // 2
+        y = y - marker_size // 2
+        
+        # Make sure the marker fits in the image
+        if (x >= 0 and y >= 0 and 
+            x + marker_size < width and 
+            y + marker_size < height):
+            
+            # Place marker in the image
+            img[y:y+marker_size, x:x+marker_size] = marker_rgb
+    
+    return img
+
 # Example usage:
 if __name__ == "__main__":
-    # Load an image
-    img = cv2.imread("test_image.jpg")
+    print(f"OpenCV version: {cv2.__version__}")
+    
+    if not cv2.__version__.startswith("4.10"):
+        print("Warning: This script is designed for OpenCV 4.10.x")
+        print(f"Current version: {cv2.__version__}")
+        print("It may still work, but results might vary.")
+    
+    # Check if test image exists, if not create a synthetic one
+    test_image_path = "test_image.jpg"
+    if os.path.exists(test_image_path):
+        print(f"Loading test image from {test_image_path}")
+        img = cv2.imread(test_image_path)
+        if img is None:
+            print(f"Error loading {test_image_path}, creating synthetic test image instead")
+            img = create_test_image()
+    else:
+        print(f"Test image {test_image_path} not found, creating synthetic test image")
+        img = create_test_image()
+        # Save the test image for future use
+        cv2.imwrite(test_image_path, img)
+        print(f"Saved synthetic test image to {test_image_path}")
+    
+    if img is None:
+        print("Error: Could not create or load test image")
+        sys.exit(1)
     
     # Create dictionary
     aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
@@ -243,9 +311,22 @@ if __name__ == "__main__":
     aruco_params = cv2.aruco.DetectorParameters()
     
     # Detect markers
+    print("Running ArUco detection with enhanced detector...")
     markers_img, corners, ids = detect_aruco_markers(img, aruco_dict, aruco_params)
     
-    # Display result
-    cv2.imshow("Markers", markers_img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if ids is not None:
+        print(f"Detected {len(ids)} markers with IDs: {ids.flatten()}")
+    else:
+        print("No markers detected")
+    
+    # Display result if not in headless mode
+    if os.environ.get('DISPLAY'):
+        cv2.imshow("Enhanced ArUco Detector", markers_img)
+        print("Press any key to exit...")
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
+    # Save the result
+    result_path = "aruco_detection_result.jpg"
+    cv2.imwrite(result_path, markers_img)
+    print(f"Detection result saved to {result_path}")
