@@ -155,9 +155,15 @@ except Exception as e:
                     ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
                     # In OpenCV 4.12.0-dev, Dictionary constructor needs marker size (6 for 6x6 dict)
                     aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                    print("ArUco module successfully loaded and verified (using Dictionary with markerSize)")
-                    # Store the method to use later
-                    dictionary_method = "constructor_with_size"
+                    
+                    # Verify the dictionary is actually usable by creating a marker
+                    test_marker = cv2.aruco.drawMarker(aruco_dict, 0, 64)
+                    if test_marker is not None and test_marker.shape == (64, 64):
+                        print("ArUco module successfully loaded and verified (using Dictionary with markerSize)")
+                        # Store the method to use later
+                        dictionary_method = "constructor_with_size"
+                    else:
+                        raise Exception("Dictionary created but marker generation failed")
                 except Exception as e5:
                     print(f"Error verifying ArUco module: {str(e5)}")
                     print("ArUco module found but not working correctly")
@@ -167,12 +173,12 @@ except Exception as e:
                     print(f"Dictionary.create error: {str(e3)}")
                     print(f"Dictionary constructor error: {str(e4)}")
                     print(f"Dictionary with markerSize error: {str(e5)}")
-                print("\nPlease check your OpenCV installation and version.")
-                # Add detailed version info to help with debugging
-                print(f"\nDetailed OpenCV version info:")
-                print(f"OpenCV version: {cv2.__version__}")
-                print(f"Build information: {cv2.getBuildInformation()}")
-                sys.exit(1)
+                    print("\nPlease check your OpenCV installation and version.")
+                    # Add detailed version info to help with debugging
+                    print(f"\nDetailed OpenCV version info:")
+                    print(f"OpenCV version: {cv2.__version__}")
+                    print(f"Build information: {cv2.getBuildInformation()}")
+                    sys.exit(1)
 
 # ArUco marker side length in meters
 MARKER_SIZE = 0.3048  # 12 inches (0.3048m)
