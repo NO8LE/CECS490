@@ -375,23 +375,31 @@ class OakDArUcoDetector:
                 # Create and configure detector parameters
                 self.aruco_params = cv2.aruco.DetectorParameters()
                 
-                # Configure parameters for better detection
+                # Configure parameters with stricter settings to prevent false positives
                 # Adaptive thresholding parameters
                 self.aruco_params.adaptiveThreshWinSizeMin = 3
                 self.aruco_params.adaptiveThreshWinSizeMax = 23
                 self.aruco_params.adaptiveThreshWinSizeStep = 10
                 self.aruco_params.adaptiveThreshConstant = 7
                 
-                # Contour filtering parameters
-                self.aruco_params.minMarkerPerimeterRate = 0.03  # Smaller value to detect distant markers
+                # Contour filtering parameters - these are critical for preventing false detections
+                self.aruco_params.minMarkerPerimeterRate = 0.05  # Increase minimum size to prevent small false detections
                 self.aruco_params.maxMarkerPerimeterRate = 4.0
-                self.aruco_params.polygonalApproxAccuracyRate = 0.05
+                self.aruco_params.polygonalApproxAccuracyRate = 0.03  # More accurate corner detection
+                self.aruco_params.minCornerDistanceRate = 0.05  # Minimum distance between corners
+                self.aruco_params.minDistanceToBorder = 3  # Minimum distance from borders
                 
                 # Corner refinement parameters
                 self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
                 self.aruco_params.cornerRefinementWinSize = 5
                 self.aruco_params.cornerRefinementMaxIterations = 30
                 self.aruco_params.cornerRefinementMinAccuracy = 0.1
+                
+                # Error correction parameters - critical for preventing false positives
+                self.aruco_params.errorCorrectionRate = 0.6  # Increase error correction rate (default 0.6)
+                self.aruco_params.minOtsuStdDev = 5.0  # Minimum standard deviation for Otsu thresholding
+                self.aruco_params.perspectiveRemovePixelPerCell = 4  # Pixels per cell for perspective removal
+                self.aruco_params.perspectiveRemoveIgnoredMarginPerCell = 0.13  # Margin for perspective removal
                 
                 # Create the detector
                 self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
@@ -1320,7 +1328,77 @@ class OakDArUcoDetector:
                             corners_list.append(corners[i].reshape(1, 4, 2))
                         corners = corners_list
                     
-                    print(f"Detected {len(ids)} markers using OpenCV 4.12+ ArucoDetector API")
+                    # Apply validation checks to filter out false detections
+                    valid_indices = []
+                    valid_corners = []
+                    valid_ids = []
+                    
+                    # Filter out false positives
+                    for i in range(len(ids)):
+                        marker_id = ids[i][0]
+                        marker_corners = corners[i]
+                        
+                        # Check 1: Verify marker has a valid perimeter (minimum size)
+                        perimeter = cv2.arcLength(marker_corners[0], True)
+                        min_perimeter = gray.shape[0] * 0.04  # At least 4% of image height
+                        
+                        # Check 2: Verify corner angles (should be close to 90 degrees)
+                        angles_valid = True
+                        for j in range(4):
+                            p1 = marker_corners[0][j]
+                            p2 = marker_corners[0][(j+1) % 4]
+                            p3 = marker_corners[0][(j+2) % 4]
+                            
+                            # Calculate vectors
+                            v1 = p1 - p2
+                            v2 = p3 - p2
+                            
+                            # Calculate angle
+                            dot = np.sum(v1 * v2)
+                            norm1 = np.linalg.norm(v1)
+                            norm2 = np.linalg.norm(v2)
+                            
+                            # Avoid division by zero
+                            if norm1 > 0 and norm2 > 0:
+                                cos_angle = dot / (norm1 * norm2)
+                                # Limit to valid range due to numerical errors
+                                cos_angle = max(-1.0, min(1.0, cos_angle))
+                                angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
+                                
+                                # In a perfect square, opposite corners should have angle close to 90 degrees
+                                if abs(angle - 90) > 35:  # Allow some deviation from 90 degrees
+                                    angles_valid = False
+                                    break
+                            else:
+                                angles_valid = False
+                                break
+                        
+                        # Check 3: Verify marker has a reasonable aspect ratio
+                        width = np.linalg.norm(marker_corners[0][0] - marker_corners[0][1])
+                        height = np.linalg.norm(marker_corners[0][1] - marker_corners[0][2])
+                        
+                        if width > 0 and height > 0:
+                            aspect_ratio = max(width/height, height/width)
+                            aspect_valid = aspect_ratio < 2.5  # Not too stretched
+                        else:
+                            aspect_valid = False
+                        
+                        # Consider the marker valid if it passes all checks
+                        if perimeter >= min_perimeter and angles_valid and aspect_valid:
+                            valid_indices.append(i)
+                            valid_corners.append(corners[i])
+                            valid_ids.append(ids[i])
+                    
+                    # Update with validated markers only
+                    if len(valid_indices) > 0:
+                        corners = valid_corners
+                        ids = np.array(valid_ids)
+                        print(f"Detected {len(ids)} valid markers out of {len(corners_list)} candidates using OpenCV 4.8+ ArucoDetector API")
+                    else:
+                        # No valid markers found
+                        corners = []
+                        ids = np.array([])
+                        print("All detected markers were filtered out as false positives")
                 else:
                     # Initialize empty arrays if no markers detected
                     corners = []
