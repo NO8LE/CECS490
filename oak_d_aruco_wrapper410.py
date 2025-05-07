@@ -16,9 +16,13 @@ import os
 import importlib
 import types
 
+# Global variable to track which dictionary method was used for marker generation
+# This will be imported from fix_aruco_opencv410
+generation_dict_method = None
+
 # Import our enhanced detector
 try:
-    from fix_aruco_opencv410 import detect_aruco_markers
+    from fix_aruco_opencv410 import detect_aruco_markers, generation_dict_method
     print("Enhanced ArUco detector for OpenCV 4.10.0 loaded successfully")
 except ImportError:
     print("Error: Could not import enhanced ArUco detector.")
@@ -72,7 +76,28 @@ def run_detector():
             
             # For OpenCV 4.10.0, use our enhanced detector
             if cv2.__version__.startswith("4.10"):
-                # Use our enhanced detector without printing message every time
+                # Print once which dictionary method is being used
+                print(f"Using enhanced ArUco detector for OpenCV 4.10.0")
+                
+                # Ensure we're using the same dictionary type that was used for generation
+                if generation_dict_method is not None:
+                    print(f"Using dictionary method from generation: {generation_dict_method}")
+                    
+                    # Create the appropriate dictionary based on the generation method
+                    if generation_dict_method == "getPredefinedDictionary":
+                        try:
+                            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+                            print("Using getPredefinedDictionary for detection")
+                        except Exception as e:
+                            print(f"Error using getPredefinedDictionary: {e}")
+                    elif generation_dict_method == "Dictionary_get":
+                        try:
+                            self.aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+                            print("Using Dictionary_get for detection")
+                        except Exception as e:
+                            print(f"Error using Dictionary_get: {e}")
+                
+                # Use our enhanced detector
                 markers_frame, corners, ids = detect_aruco_markers(
                     frame,
                     self.aruco_dict,
@@ -116,6 +141,18 @@ if __name__ == "__main__":
         response = input("Continue anyway? (y/n): ")
         if response.lower() != 'y':
             sys.exit(0)
+    
+    # Print information about the dictionary method
+    print("=" * 50)
+    print("ArUco Detection Configuration:")
+    print(f"- OpenCV Version: {cv2.__version__}")
+    
+    # Check if we have a generation dictionary method
+    if generation_dict_method is not None:
+        print(f"- Dictionary Method: {generation_dict_method}")
+    else:
+        print("- Dictionary Method: Not yet determined (will use default)")
+    print("=" * 50)
     
     # Run the detector with our enhanced implementation
     run_detector()
