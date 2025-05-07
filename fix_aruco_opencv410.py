@@ -142,11 +142,15 @@ def detect_aruco_markers(frame, aruco_dict, aruco_params, camera_matrix=None, di
         if len(valid_indices) > 0:
             corners = valid_corners
             ids = np.array(valid_ids)
-            print(f"Detected {len(ids)} valid markers out of {original_count} candidates")
+            # Only print if there are markers to report
+            if len(ids) > 0:
+                print(f"Detected {len(ids)} valid markers with IDs: {ids.flatten()}")
         else:
             corners = []
             ids = None
-            print(f"All {original_count} detected markers were filtered out as false positives")
+            # Only print this message if there were actually candidates detected
+            if original_count > 0:
+                print(f"No valid markers found among {original_count} candidates")
     else:
         corners = []
         ids = None
@@ -253,10 +257,7 @@ def create_test_image(width=640, height=480):
     noise = np.random.randint(0, 30, (height, width, 3), dtype=np.uint8)
     img = cv2.add(img, noise)
     
-    # Create a dictionary for ArUco markers
-    aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
-    
-    # Create and add actual ArUco markers
+    # Create markers with different IDs and positions
     marker_size = 100
     
     # Create markers with different IDs and positions
@@ -272,38 +273,74 @@ def create_test_image(width=640, height=480):
         marker_img = None
         success = False
         
-        # Method 1: Using global cv2.aruco.drawMarker function (OpenCV 3.x and 4.x < 4.10)
+        # Method 1: Using getPredefinedDictionary and generateImageMarker (OpenCV 4.10+)
         try:
-            marker_img = cv2.aruco.drawMarker(aruco_dict, marker_id, marker_size)
+            # Get a predefined dictionary
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+            # Generate marker image directly with the function
+            marker_img = cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size)
             success = True
-            print(f"Created marker ID {marker_id} using cv2.aruco.drawMarker")
+            print(f"Created marker ID {marker_id} using getPredefinedDictionary and generateImageMarker")
         except Exception as e:
             print(f"Method 1 failed: {e}")
         
-        # Method 2: Using dictionary.drawMarker with destination image (OpenCV 4.10+)
+        # Method 2: Alternative dictionary creation with Dictionary_get
         if not success:
             try:
-                marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
-                marker_img = aruco_dict.drawMarker(marker_id, marker_size, marker_img, 1)
+                # Try using Dictionary_get
+                aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+                marker_img = cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size)
                 success = True
-                print(f"Created marker ID {marker_id} using dictionary.drawMarker")
+                print(f"Created marker ID {marker_id} using Dictionary_get and generateImageMarker")
             except Exception as e:
                 print(f"Method 2 failed: {e}")
         
-        # Method 3: Using ArucoDetector.generateImageMarker (OpenCV 4.10+)
+        # Method 3: Try with our original Dictionary constructor
         if not success:
             try:
-                detector = cv2.aruco.ArucoDetector(aruco_dict)
-                marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
-                marker_img = detector.generateImageMarker(marker_id, marker_size, marker_img, 1)
+                aruco_dict = cv2.aruco.Dictionary(cv2.aruco.DICT_6X6_250, 6)
+                marker_img = cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size)
                 success = True
-                print(f"Created marker ID {marker_id} using detector.generateImageMarker")
+                print(f"Created marker ID {marker_id} using Dictionary constructor and generateImageMarker")
             except Exception as e:
                 print(f"Method 3 failed: {e}")
         
-        # Fallback method: Create a simple visual marker
+        # Method 4: Try creating a marker manually based on the ArUco pattern
+        if not success:
+            try:
+                # Create a blank white image
+                marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
+                
+                # Create a simple ArUco-like pattern
+                # Black border
+                border = int(marker_size * 0.1)
+                marker_img[border:marker_size-border, border:marker_size-border] = 0
+                
+                # White inner area
+                inner_border = int(marker_size * 0.2)
+                marker_img[inner_border:marker_size-inner_border, inner_border:marker_size-inner_border] = 255
+                
+                # Add a pattern based on marker_id (simple binary pattern)
+                cell_size = int((marker_size - 2*inner_border) / 4)
+                for bit_pos in range(8):  # Use 8 bits for the pattern
+                    bit_value = (marker_id >> bit_pos) & 1
+                    row = 2 + (bit_pos // 4)
+                    col = 1 + (bit_pos % 4)
+                    if bit_value:
+                        r1 = inner_border + (row-1)*cell_size
+                        c1 = inner_border + (col-1)*cell_size
+                        r2 = r1 + cell_size
+                        c2 = c1 + cell_size
+                        marker_img[r1:r2, c1:c2] = 0
+                
+                success = True
+                print(f"Created marker ID {marker_id} using manual ArUco-like pattern")
+            except Exception as e:
+                print(f"Method 4 failed: {e}")
+        
+        # Fallback method: Create a simple visual marker with text
         if not success or marker_img is None:
-            print(f"All methods failed for marker ID {marker_id}, using fallback")
+            print(f"All methods failed for marker ID {marker_id}, using text fallback")
             marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
             # Draw a black square border
             cv2.rectangle(marker_img, (10, 10), (marker_size-10, marker_size-10), 0, 2)
