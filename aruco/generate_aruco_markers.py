@@ -131,7 +131,7 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
         The marker image
     """
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # For OpenCV 4.12.0-dev and newer
         try:
             # Create dictionary with marker size parameter
@@ -172,7 +172,7 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
     marker_image = np.zeros((size, size), dtype=np.uint8)
     
     # Check OpenCV version for the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         try:
             # For OpenCV 4.12+, try using the dictionary's drawMarker method
             marker_image = aruco_dict.drawMarker(marker_id, size, marker_image, 1)

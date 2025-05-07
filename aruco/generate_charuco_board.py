@@ -65,7 +65,7 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
     
     # Create the ArUco dictionary - using 6x6 250
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # For OpenCV 4.12.0-dev and newer
         try:
             # Create dictionary with marker size parameter
@@ -85,7 +85,7 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
     
     # Create the CharucoBoard
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # For OpenCV 4.12.0-dev and newer
         try:
             # Create CharucoBoard with the constructor
@@ -121,7 +121,7 @@ def generate_charuco_board(squares_x=6, squares_y=6, board_size_inches=12.0,
             )
     
     # Generate the board image - handle OpenCV 4.12+ differently
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         try:
             # For OpenCV 4.12+, use the draw method with size parameter
             board_size = (int(squares_x * square_length), int(squares_y * square_length))

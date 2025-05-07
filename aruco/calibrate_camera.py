@@ -184,7 +184,7 @@ def get_aruco_dictionary(dictionary_id=cv2.aruco.DICT_6X6_250):
         The ArUco dictionary
     """
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # For OpenCV 4.12.0-dev and newer, always use the Dictionary constructor with marker size
         try:
             # Create dictionary with marker size parameter (6 for 6x6 dictionary)
@@ -237,7 +237,7 @@ def create_charuco_board(squares_x=8, squares_y=6, square_length=0.325, marker_l
         The CharucoBoard object
     """
     # Check OpenCV version first to use the appropriate API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # For OpenCV 4.12.0-dev and newer
         try:
             # Create dictionary with marker size parameter
@@ -334,8 +334,8 @@ class CameraCalibrator:
             # Get the ArUco dictionary
             self.aruco_dict = get_aruco_dictionary()
             
-            # Initialize detector parameters - handle OpenCV 4.12+ differently
-            if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+            # Initialize detector parameters - handle OpenCV 4.10+ differently
+            if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
                 try:
                     # For OpenCV 4.12.0-dev and newer
                     self.aruco_params = cv2.aruco.DetectorParameters()
@@ -494,7 +494,7 @@ class CameraCalibrator:
         estimated_distance = None
         
         # Detect ArUco markers - handle OpenCV 4.12+ differently
-        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
             try:
                 # For OpenCV 4.12+, use the ArucoDetector
                 detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)

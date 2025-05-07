@@ -117,8 +117,8 @@ except ImportError:
 
 # Verify ArUco module is working
 try:
-    # For OpenCV 4.12.0-dev and newer, try using the ArucoDetector API
-    if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+    # For OpenCV 4.10.0 and newer, try using the new API with marker size parameter
+    if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
         # Create a dictionary with the required marker size parameter
         ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
         aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
@@ -128,8 +128,8 @@ try:
         detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
         
         # If we get here without errors, the ArUco module is working
-        print("ArUco module successfully loaded and verified (using ArucoDetector API)")
-        dictionary_method = "opencv4.12_detector"
+        print(f"ArUco module successfully loaded and verified for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
+        dictionary_method = "opencv4.10_plus"
     else:
         # Try older API methods for earlier OpenCV versions
         try:
@@ -166,13 +166,22 @@ try:
                         # Store the method to use later
                         dictionary_method = "constructor"
                     except Exception as e4:
-                        print(f"Error verifying ArUco module: {str(e4)}")
-                        print("ArUco module found but not working correctly")
-                        print("\nDetailed error information:")
-                        print(f"Dictionary_get error: {str(e)}")
-                        print(f"Dictionary.get error: {str(e2)}")
-                        print(f"Dictionary.create error: {str(e3)}")
-                        print(f"Dictionary constructor error: {str(e4)}")
+                        # Try with marker size parameter as a last resort
+                        try:
+                            ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+                            aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                            print("ArUco module successfully loaded and verified (using Dictionary with markerSize)")
+                            # Store the method to use later
+                            dictionary_method = "constructor_with_size"
+                        except Exception as e5:
+                            print(f"Error verifying ArUco module: {str(e5)}")
+                            print("ArUco module found but not working correctly")
+                            print("\nDetailed error information:")
+                            print(f"Dictionary_get error: {str(e)}")
+                            print(f"Dictionary.get error: {str(e2)}")
+                            print(f"Dictionary.create error: {str(e3)}")
+                            print(f"Dictionary constructor error: {str(e4)}")
+                            print(f"Dictionary with markerSize error: {str(e5)}")
                         print("\nPlease check your OpenCV installation and version.")
                         # Add detailed version info to help with debugging
                         print(f"\nDetailed OpenCV version info:")
@@ -356,10 +365,10 @@ class OakDArUcoDetector:
         self.max_pwm = 2000
             
         # Initialize ArUco detector based on OpenCV version
-        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
-            # For OpenCV 4.12.0-dev and newer - use the new API consistently
+        if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+            # For OpenCV 4.10.0 and newer - use the new API consistently
             try:
-                print("Initializing ArUco detector for OpenCV 4.12+")
+                print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
                 # Create dictionary with marker size parameter
                 self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
                 
@@ -1276,8 +1285,8 @@ class OakDArUcoDetector:
         ids = None
         rejected = []
         
-        # For OpenCV 4.12.0-dev, use the ArucoDetector API consistently
-        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        # For OpenCV 4.10.0 and newer, use the ArucoDetector API consistently
+        if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
             try:
                 # Make sure we have a detector
                 if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
@@ -1342,7 +1351,7 @@ class OakDArUcoDetector:
             # Check if this looks like a CharucoBoard pattern
             try:
                 # Create a CharucoBoard object for detection - handle OpenCV 4.12+ differently
-                if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+                if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
                     # For OpenCV 4.12+
                     try:
                         # Create dictionary with marker size parameter
