@@ -1,5 +1,6 @@
 # Specific versions known to work together
-opencv-contrib-python==4.5.5.62  # For ArUco module
+#opencv==4.5.5.62  # For ArUco module
+opencv==4.8.0  # custom compiled with cuda accel
 numpy==1.26.4  # OpenCV is not compatible with NumPy 2.x
 scipy==1.15.2
 depthai==2.24.0.0

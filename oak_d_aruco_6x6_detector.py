@@ -365,7 +365,7 @@ class OakDArUcoDetector:
         self.max_pwm = 2000
             
         # Initialize ArUco detector based on OpenCV version
-        if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
             # For OpenCV 4.10.0 and newer - use the new API consistently
             try:
                 print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
@@ -435,8 +435,8 @@ class OakDArUcoDetector:
                                 print(f"All dictionary creation methods failed: {e}")
                                 sys.exit(1)
         
-        # Initialize detector parameters - handle OpenCV 4.12+ differently
-        if cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+        # Initialize detector parameters - handle OpenCV 4.8+ and 4.12+ differently
+        if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
             try:
                 # For OpenCV 4.12.0-dev and newer
                 self.aruco_params = cv2.aruco.DetectorParameters()
@@ -1350,8 +1350,8 @@ class OakDArUcoDetector:
         if not simple_detection and ids is not None and len(ids) >= 4:
             # Check if this looks like a CharucoBoard pattern
             try:
-                # Create a CharucoBoard object for detection - handle OpenCV 4.12+ differently
-                if cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
+                # Create a CharucoBoard object for detection - handle OpenCV 4.8+ and 4.12+ differently
+                if cv2.__version__.startswith("4.8") or cv2.__version__.startswith("4.10") or cv2.__version__.startswith("4.11") or cv2.__version__.startswith("4.12") or cv2.__version__.startswith("4.13") or cv2.__version__.startswith("4.14"):
                     # For OpenCV 4.12+
                     try:
                         # Create dictionary with marker size parameter
@@ -1604,51 +1604,94 @@ class OakDArUcoDetector:
             try:
                 # Ensure we have valid calibration data
                 if self.camera_matrix is not None and self.dist_coeffs is not None:
-                    # Handle API changes in OpenCV 4.12+
-                    try:
-                        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                            corners,
-                            MARKER_SIZE,
-                            self.camera_matrix,
-                            self.dist_coeffs
-                        )
-                    except AttributeError:
-                        # For OpenCV 4.12+, try alternative approach
+                    # Handle API changes in OpenCV 4.8+ and 4.12+
+                    if cv2.__version__.startswith("4.8"):
+                        # For OpenCV 4.8.0, use solvePnP approach as the API changed
+                        rvecs = []
+                        tvecs = []
+                        
+                        # Process each marker individually
+                        for i in range(len(corners)):
+                            # Create object points for a square marker
+                            objPoints = np.array([
+                                [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                [MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
+                                [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
+                            ], dtype=np.float32)
+                            
+                            # Get image points from corners
+                            imgPoints = corners[i][0].astype(np.float32)
+                            
+                            # Use solvePnP to get pose
+                            success, rvec, tvec = cv2.solvePnP(
+                                objPoints,
+                                imgPoints,
+                                self.camera_matrix,
+                                self.dist_coeffs
+                            )
+                            
+                            if success:
+                                rvecs.append(rvec)
+                                tvecs.append(tvec)
+                        
+                        # Convert to numpy arrays with the same shape as the original function
+                        if len(rvecs) > 0:
+                            rvecs = np.array(rvecs)
+                            tvecs = np.array(tvecs)
+                        else:
+                            rvecs = None
+                            tvecs = None
+                    else:
+                        # For other versions, try the traditional API first
                         try:
-                            # Create temporary arrays to store results
-                            rvecs = []
-                            tvecs = []
-                            
-                            # Process each marker individually
-                            for i in range(len(corners)):
-                                # Create object points for a square marker
-                                objPoints = np.array([
-                                    [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                    [MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                    [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
-                                    [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
-                                ], dtype=np.float32)
+                            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                                corners,
+                                MARKER_SIZE,
+                                self.camera_matrix,
+                                self.dist_coeffs
+                            )
+                        except AttributeError:
+                            # For OpenCV 4.12+, try alternative approach
+                            try:
+                                # Create temporary arrays to store results
+                                rvecs = []
+                                tvecs = []
                                 
-                                # Get image points from corners
-                                imgPoints = corners[i][0].astype(np.float32)
+                                # Process each marker individually
+                                for i in range(len(corners)):
+                                    # Create object points for a square marker
+                                    objPoints = np.array([
+                                        [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                        [MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                        [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
+                                        [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
+                                    ], dtype=np.float32)
+                                    
+                                    # Get image points from corners
+                                    imgPoints = corners[i][0].astype(np.float32)
+                                    
+                                    # Use solvePnP to get pose
+                                    success, rvec, tvec = cv2.solvePnP(
+                                        objPoints,
+                                        imgPoints,
+                                        self.camera_matrix,
+                                        self.dist_coeffs
+                                    )
+                                    
+                                    if success:
+                                        rvecs.append(rvec)
+                                        tvecs.append(tvec)
                                 
-                                # Use solvePnP to get pose
-                                success, rvec, tvec = cv2.solvePnP(
-                                    objPoints,
-                                    imgPoints,
-                                    self.camera_matrix,
-                                    self.dist_coeffs
-                                )
-                                
-                                if success:
-                                    rvecs.append(rvec)
-                                    tvecs.append(tvec)
-                            
-                            # Convert to numpy arrays with the same shape as the original function
-                            if len(rvecs) > 0:
-                                rvecs = np.array(rvecs)
-                                tvecs = np.array(tvecs)
-                            else:
+                                # Convert to numpy arrays with the same shape as the original function
+                                if len(rvecs) > 0:
+                                    rvecs = np.array(rvecs)
+                                    tvecs = np.array(tvecs)
+                                else:
+                                    rvecs = None
+                                    tvecs = None
+                            except Exception as e:
+                                print(f"Alternative pose estimation failed: {e}")
                                 rvecs = None
                                 tvecs = None
                         except Exception as e:
