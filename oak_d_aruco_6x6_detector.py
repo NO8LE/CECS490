@@ -224,9 +224,15 @@ DETECTION_PROFILES = {
     }
 }
 
-# Camera calibration directory - create if it doesn't exist
-CALIB_DIR = "camera_calibration"
+# Directory paths
+CALIB_DIR = "aruco/camera_calibration"
 os.makedirs(CALIB_DIR, exist_ok=True)
+
+# ArUco marker directory
+ARUCO_MARKER_DIR = "aruco/aruco_markers"
+
+# Calibration patterns directory
+CALIBRATION_PATTERNS_DIR = "aruco/calibration_patterns"
 
 class MarkerTracker:
     """
@@ -517,10 +523,14 @@ class OakDArUcoDetector:
         """
         Load camera calibration from file or use default values
         """
+        # Check calibration file in the aruco subdirectory
         calib_file = os.path.join(CALIB_DIR, "calibration.npz")
         
+        # Also check in the original location (root directory) as fallback
+        legacy_calib_file = "camera_calibration/calibration.npz"
+        
         if os.path.exists(calib_file):
-            # Load calibration from file
+            # Load calibration from file in aruco subdirectory
             print(f"Loading camera calibration from {calib_file}")
             data = np.load(calib_file)
             self.camera_matrix = data['camera_matrix']
@@ -531,21 +541,51 @@ class OakDArUcoDetector:
                 print("Detected CharucoBoard calibration data")
                 if 'squares_x' in data and 'squares_y' in data:
                     print(f"CharucoBoard: {data['squares_x']}x{data['squares_y']} squares")
+        elif os.path.exists(legacy_calib_file):
+            # Load from legacy location as fallback
+            print(f"Loading camera calibration from legacy location: {legacy_calib_file}")
+            try:
+                data = np.load(legacy_calib_file)
+                self.camera_matrix = data['camera_matrix']
+                self.dist_coeffs = data['dist_coeffs']
+                
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(calib_file), exist_ok=True)
+                
+                # Copy to new location
+                np.savez(calib_file, **data)
+                print(f"Copied calibration data to new location: {calib_file}")
+            except Exception as e:
+                print(f"Error loading legacy calibration: {e}")
+                self._create_default_calibration(calib_file)
         else:
-            # Use default calibration (will be less accurate)
-            print("Using default camera calibration")
-            # Default calibration for OAK-D RGB camera (approximate values)
-            self.camera_matrix = np.array([
-                [860.0, 0, 640.0],
-                [0, 860.0, 360.0],
-                [0, 0, 1]
-            ])
-            self.dist_coeffs = np.zeros((1, 5))
-            
-            # Save default calibration
+            # Use default calibration if no file exists
+            self._create_default_calibration(calib_file)
+    
+    def _create_default_calibration(self, calib_file):
+        """
+        Create default camera calibration when no calibration file exists
+        """
+        print("No calibration file found. Using default camera calibration.")
+        # Default calibration for OAK-D RGB camera (approximate values)
+        self.camera_matrix = np.array([
+            [860.0, 0, 640.0],
+            [0, 860.0, 360.0],
+            [0, 0, 1]
+        ])
+        self.dist_coeffs = np.zeros((1, 5))
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(calib_file), exist_ok=True)
+        
+        # Save default calibration
+        try:
             np.savez(calib_file, camera_matrix=self.camera_matrix, dist_coeffs=self.dist_coeffs)
             print(f"Saved default calibration to {calib_file}")
-            print("For better accuracy, consider calibrating your camera")
+        except Exception as e:
+            print(f"Failed to save default calibration: {e}")
+        
+        print("For better accuracy, consider calibrating your camera using aruco/calibrate_camera.py")
     
     def initialize_pipeline(self):
         """
@@ -1173,30 +1213,33 @@ class OakDArUcoDetector:
         else:
             gray = self.preprocess_image(frame)
         
-        # Detect ArUco markers
+        # Detect ArUco markers - support both older and newer OpenCV API
+        print("Attempting to detect ArUco markers...")
+        corners = []
+        ids = None
+        rejected = []
+        
+        # Try the newer ArucoDetector API first (for OpenCV 4.12.0-dev)
         try:
-            corners, ids, rejected = cv2.aruco.detectMarkers(
-                gray, 
-                self.aruco_dict, 
-                parameters=self.aruco_params
-            )
-            if not self.quiet:
-                print(f"ArUco markers detected: {0 if ids is None else len(ids)}")
+            print("Trying ArucoDetector API (newer OpenCV)...")
+            detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+            corners, ids, rejected = detector.detectMarkers(gray)
+            print(f"Success! Using ArucoDetector API, markers detected: {0 if ids is None else len(ids)}")
         except Exception as e:
-            print(f"Error in cv2.aruco.detectMarkers: {str(e)}")
-            # Try an alternative approach if detectMarkers fails
+            print(f"ArucoDetector API not available: {str(e)}")
+            
+            # Fall back to older detectMarkers function
             try:
-                # Create a detector object for OpenCV 4.12.0-dev
-                detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
-                corners, ids, rejected = detector.detectMarkers(gray)
-                if not self.quiet:
-                    print(f"Using ArucoDetector API, markers detected: {0 if ids is None else len(ids)}")
+                print("Falling back to cv2.aruco.detectMarkers...")
+                corners, ids, rejected = cv2.aruco.detectMarkers(
+                    gray, 
+                    self.aruco_dict, 
+                    parameters=self.aruco_params
+                )
+                print(f"Success! ArUco markers detected: {0 if ids is None else len(ids)}")
             except Exception as e2:
-                print(f"Error with alternative detectMarkers approach: {str(e2)}")
-                # Return empty results if both methods fail
-                corners = []
-                ids = None
-                rejected = []
+                print(f"Error in cv2.aruco.detectMarkers: {str(e2)}")
+                print("All ArUco detection methods failed!")
         
         # Try to detect CharucoBoard only if not in simple detection mode
         charuco_corners = None
