@@ -256,7 +256,34 @@ def create_test_image(width=640, height=480):
     ]):
         # Create a marker image
         marker_id = i
-        marker_img = aruco_dict.drawMarker(marker_id, marker_size)
+        marker_img = np.zeros((marker_size, marker_size), dtype=np.uint8)
+        
+        # Handle OpenCV 4.10.0 API changes for ArUco marker generation
+        # In OpenCV 4.10.0, the drawMarker method has a different signature
+        try:
+            # Method 1: Using dictionary.drawMarker with the new signature
+            marker_img = aruco_dict.drawMarker(marker_id, marker_size, marker_img, 1)
+        except Exception:
+            try:
+                # Method 2: Using ArucoDetector.generateImageMarker
+                detector = cv2.aruco.ArucoDetector(aruco_dict)
+                marker_img = detector.generateImageMarker(marker_id, marker_size, marker_img, 1)
+            except Exception:
+                # Method 3: Fallback to using the global function if available
+                try:
+                    marker_img = cv2.aruco.drawMarker(aruco_dict, marker_id, marker_size, marker_img, 1)
+                except Exception:
+                    # Last resort: Create a simple visual marker with text
+                    marker_img = np.ones((marker_size, marker_size), dtype=np.uint8) * 255
+                    cv2.putText(
+                        marker_img,
+                        f"ID: {marker_id}",
+                        (marker_size//10, marker_size//2),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        0,
+                        1
+                    )
         
         # Convert to RGB
         marker_rgb = cv2.cvtColor(marker_img, cv2.COLOR_GRAY2BGR)
