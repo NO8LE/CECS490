@@ -208,8 +208,11 @@ def run_detector():
                 
                 # Save a copy of the input frame for diagnostics if needed
                 debug_frame = frame.copy()
+                debug_dir = "aruco_debug"
+                os.makedirs(debug_dir, exist_ok=True)
+                timestamp = int(time.time())
                 
-                # Use our enhanced detector
+                # Try standard detection first
                 print("Calling enhanced detect_aruco_markers function...")
                 markers_frame, corners, ids = detect_aruco_markers(
                     frame,
@@ -219,36 +222,174 @@ def run_detector():
                     self.dist_coeffs
                 )
                 
+                # If no markers found, try with CharucoBoard detection
+                if ids is None or len(ids) == 0:
+                    print("Standard detection found no markers, trying CharucoBoard detection...")
+                    try:
+                        # Create CharucoBoard for detection (same parameters as calibration)
+                        squares_x, squares_y = 6, 6  # Common CharucoBoard dimensions
+                        square_length = 0.3048/6  # Default to 12 inches (0.3048m) / 6 squares
+                        marker_length = square_length * 0.75  # 75% of square size
+                        
+                        # Create CharucoBoard
+                        board = cv2.aruco.CharucoBoard(
+                            (squares_x, squares_y),  # (squaresX, squaresY) tuple
+                            square_length,  # squareLength
+                            marker_length,  # markerLength 
+                            self.aruco_dict  # Dictionary
+                        )
+                        
+                        # Create CharucoDetector
+                        charuco_params = cv2.aruco.CharucoParameters()
+                        charuco_detector = cv2.aruco.CharucoDetector(board, charuco_params)
+                        
+                        # Save a copy of the grayscale image
+                        gray_copy = gray.copy()
+                        cv2.imwrite(f"{debug_dir}/gray_{timestamp}.jpg", gray_copy)
+                        
+                        print("Attempting CharucoBoard detection...")
+                        # Detect the board
+                        charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
+                        
+                        # If markers found
+                        if marker_ids is not None and len(marker_ids) > 0:
+                            print(f"CharucoBoard detection found {len(marker_ids)} markers!")
+                            # Use these results
+                            corners = marker_corners
+                            ids = marker_ids
+                            
+                            # Create a visualization of the results
+                            markers_frame = frame.copy()
+                            cv2.aruco.drawDetectedMarkers(markers_frame, corners, ids)
+                            cv2.imwrite(f"{debug_dir}/charuco_detection_{timestamp}.jpg", markers_frame)
+                    except Exception as e:
+                        print(f"Error during CharucoBoard detection: {e}")
+                
+                # If still no markers found, try with inverted image (black/white flipped)
+                if ids is None or len(ids) == 0:
+                    print("CharucoBoard detection found no markers, trying with inverted image...")
+                    try:
+                        # Invert the image (flip black and white)
+                        inverted = cv2.bitwise_not(gray)
+                        cv2.imwrite(f"{debug_dir}/inverted_{timestamp}.jpg", inverted)
+                        
+                        # Try with inverted image for regular detection
+                        inv_frame = cv2.cvtColor(inverted, cv2.COLOR_GRAY2BGR)
+                        inv_markers_frame, inv_corners, inv_ids = detect_aruco_markers(
+                            inv_frame,
+                            self.aruco_dict,
+                            self.aruco_params,
+                            self.camera_matrix,
+                            self.dist_coeffs
+                        )
+                        
+                        # If found markers in inverted image
+                        if inv_ids is not None and len(inv_ids) > 0:
+                            print(f"Found {len(inv_ids)} markers in inverted image!")
+                            corners = inv_corners
+                            ids = inv_ids
+                            markers_frame = inv_markers_frame
+                            cv2.imwrite(f"{debug_dir}/inverted_markers_{timestamp}.jpg", markers_frame)
+                    except Exception as e:
+                        print(f"Error during inverted image detection: {e}")
+                
+                # If still no markers found, try with different thresholding approaches
+                if ids is None or len(ids) == 0:
+                    print("Trying alternative thresholding approaches...")
+                    
+                    # Try different thresholding methods
+                    thresholding_methods = [
+                        # Method 1: Adaptive Gaussian thresholding
+                        ("adaptive_gaussian", lambda img: cv2.adaptiveThreshold(
+                            img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)),
+                        
+                        # Method 2: Adaptive Mean thresholding
+                        ("adaptive_mean", lambda img: cv2.adaptiveThreshold(
+                            img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)),
+                        
+                        # Method 3: Otsu's thresholding
+                        ("otsu", lambda img: cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]),
+                        
+                        # Method 4: Simple global thresholding (mid-range)
+                        ("global_128", lambda img: cv2.threshold(img, 128, 255, cv2.THRESH_BINARY)[1])
+                    ]
+                    
+                    # Try each method
+                    for method_name, threshold_func in thresholding_methods:
+                        try:
+                            print(f"Trying {method_name} thresholding...")
+                            
+                            # Apply thresholding
+                            binary = threshold_func(gray)
+                            cv2.imwrite(f"{debug_dir}/{method_name}_{timestamp}.jpg", binary)
+                            
+                            # Convert back to color for detection
+                            binary_color = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+                            
+                            # Try detection on thresholded image
+                            try:
+                                thresh_markers_frame, thresh_corners, thresh_ids = detect_aruco_markers(
+                                    binary_color,
+                                    self.aruco_dict,
+                                    self.aruco_params,
+                                    self.camera_matrix,
+                                    self.dist_coeffs
+                                )
+                                
+                                # If found markers
+                                if thresh_ids is not None and len(thresh_ids) > 0:
+                                    print(f"Found {len(thresh_ids)} markers with {method_name} thresholding!")
+                                    corners = thresh_corners
+                                    ids = thresh_ids
+                                    markers_frame = thresh_markers_frame
+                                    cv2.imwrite(f"{debug_dir}/{method_name}_markers_{timestamp}.jpg", markers_frame)
+                                    break  # Exit loop if found markers
+                            except Exception as e:
+                                print(f"Error during {method_name} detection: {e}")
+                                
+                            # Also try inverted version
+                            binary_inv = cv2.bitwise_not(binary)
+                            cv2.imwrite(f"{debug_dir}/{method_name}_inv_{timestamp}.jpg", binary_inv)
+                            binary_inv_color = cv2.cvtColor(binary_inv, cv2.COLOR_GRAY2BGR)
+                            
+                            try:
+                                inv_thresh_markers_frame, inv_thresh_corners, inv_thresh_ids = detect_aruco_markers(
+                                    binary_inv_color,
+                                    self.aruco_dict,
+                                    self.aruco_params,
+                                    self.camera_matrix,
+                                    self.dist_coeffs
+                                )
+                                
+                                # If found markers
+                                if inv_thresh_ids is not None and len(inv_thresh_ids) > 0:
+                                    print(f"Found {len(inv_thresh_ids)} markers with inverted {method_name} thresholding!")
+                                    corners = inv_thresh_corners
+                                    ids = inv_thresh_ids
+                                    markers_frame = inv_thresh_markers_frame
+                                    cv2.imwrite(f"{debug_dir}/{method_name}_inv_markers_{timestamp}.jpg", markers_frame)
+                                    break  # Exit loop if found markers
+                            except Exception as e:
+                                print(f"Error during inverted {method_name} detection: {e}")
+                                
+                        except Exception as e:
+                            print(f"Error applying {method_name} thresholding: {e}")
+                
                 # Debug detection results
                 if ids is not None and len(ids) > 0:
-                    print(f"Enhanced detector found {len(ids)} markers: {ids.flatten()}")
-                    
-                    # Save a diagnostic image showing the detected markers
+                    print(f"Detection successful: found {len(ids)} markers: {ids.flatten()}")
                     try:
-                        # Timestamp for unique filenames
-                        timestamp = int(time.time())
-                        # Ensure debug directory exists
-                        debug_dir = "debug_images"
-                        os.makedirs(debug_dir, exist_ok=True)
-                        # Save the annotated frame
-                        debug_path = os.path.join(debug_dir, f"detected_markers_{timestamp}.jpg")
-                        cv2.imwrite(debug_path, markers_frame)
-                        print(f"Saved debug image to {debug_path}")
+                        # Save final annotated image
+                        result_path = os.path.join(debug_dir, f"final_detection_{timestamp}.jpg")
+                        cv2.imwrite(result_path, markers_frame)
+                        print(f"Saved final detection image to {result_path}")
                     except Exception as e:
-                        print(f"Warning: Could not save debug image: {e}")
+                        print(f"Warning: Could not save final detection image: {e}")
                 else:
-                    print("Enhanced detector found no markers")
-                    
-                    # If detection failed, save the raw frame for analysis
+                    print("All detection methods failed, no markers found")
+                    # Save original frame for reference
                     try:
-                        # Only save occasionally to avoid filling disk
-                        if np.random.random() < 0.1:  # 10% chance
-                            timestamp = int(time.time())
-                            debug_dir = "debug_images"
-                            os.makedirs(debug_dir, exist_ok=True)
-                            debug_path = os.path.join(debug_dir, f"failed_detection_{timestamp}.jpg")
-                            cv2.imwrite(debug_path, debug_frame)
-                            print(f"Saved failed detection frame to {debug_path}")
+                        cv2.imwrite(f"{debug_dir}/failed_detection_{timestamp}.jpg", debug_frame)
                     except Exception as e:
                         print(f"Warning: Could not save failed detection frame: {e}")
                 
