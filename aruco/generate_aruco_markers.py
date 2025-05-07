@@ -130,85 +130,60 @@ def generate_aruco_marker(marker_id, dictionary_id=cv2.aruco.DICT_6X6_250, size=
     Returns:
         The marker image
     """
-    # Check if using OpenCV 4.10 specifically
-    if cv2.__version__.startswith("4.10"):
-        # For OpenCV 4.10
+    # For OpenCV 4.10, use getPredefinedDictionary which is known to work
+    print(f"Generating marker ID {marker_id} with size {size}...")
+    
+    try:
+        # This is the method that works in fix_aruco_opencv410.py
+        aruco_dict = cv2.aruco.getPredefinedDictionary(dictionary_id)
+        print("Using getPredefinedDictionary for dictionary creation")
+        
+        # Generate marker image
+        marker_image = cv2.aruco.generateImageMarker(aruco_dict, marker_id, size)
+        print(f"Successfully generated marker ID {marker_id} using generateImageMarker")
+        
+        # Verify the marker image is not blank
+        if marker_image is not None:
+            white_pixels = np.sum(marker_image == 255)
+            black_pixels = np.sum(marker_image == 0)
+            print(f"Marker image stats - White pixels: {white_pixels}, Black pixels: {black_pixels}")
+            if black_pixels == 0:
+                print("WARNING: Marker appears to be blank (no black pixels)")
+    except Exception as e:
+        print(f"Error in primary generation method: {e}")
+        
+        # Fallback method if the primary method fails
         try:
-            # Create dictionary with appropriate method for 4.10
+            # Try with Dictionary constructor with marker size parameter
             aruco_dict = cv2.aruco.Dictionary(dictionary_id, 6)
-            print("Using OpenCV 4.10 with Dictionary constructor and marker size")
-        except Exception as e:
-            try:
-                # Try alternative method for 4.10
-                aruco_dict = cv2.aruco.getPredefinedDictionary(dictionary_id)
-                print("Using OpenCV 4.10 with getPredefinedDictionary")
-            except Exception as e2:
-                print(f"Error creating ArUco dictionary for OpenCV 4.10: {str(e)}, {str(e2)}")
-                sys.exit(1)
-    else:
-        # Get the ArUco dictionary using the method that worked during initialization
-        if dictionary_method == "old":
-            aruco_dict = cv2.aruco.Dictionary_get(dictionary_id)
-        elif dictionary_method == "new":
-            aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
-        elif dictionary_method == "create":
-            aruco_dict = cv2.aruco.Dictionary.create(dictionary_id)
-        elif dictionary_method == "constructor":
-            aruco_dict = cv2.aruco.Dictionary(dictionary_id)
-        else:
-            # Fallback to trying all methods
-            try:
-                aruco_dict = cv2.aruco.Dictionary_get(dictionary_id)
-            except:
-                try:
-                    aruco_dict = cv2.aruco.Dictionary.get(dictionary_id)
-                except:
-                    try:
-                        aruco_dict = cv2.aruco.Dictionary.create(dictionary_id)
-                    except:
-                        try:
-                            aruco_dict = cv2.aruco.Dictionary(dictionary_id)
-                        except:
-                            print("All dictionary creation methods failed")
-                            sys.exit(1)
-    
-    # Generate the marker - handle OpenCV 4.12+ differently
-    marker_image = np.zeros((size, size), dtype=np.uint8)
-    
-    # Check OpenCV version for the appropriate API
-    if cv2.__version__.startswith("4.10"):
-        try:
-            # For OpenCV 4.10, use standard generateImageMarker function
+            print("Fallback: Using Dictionary constructor with marker size")
             marker_image = cv2.aruco.generateImageMarker(aruco_dict, marker_id, size)
-            print(f"Generated marker ID {marker_id} using generateImageMarker")
-        except Exception as e:
-            print(f"Error using generateImageMarker: {e}")
-            try:
-                # Try with drawMarker as fallback
-                marker_image = cv2.aruco.drawMarker(aruco_dict, marker_id, size, marker_image, 1)
-                print(f"Generated marker ID {marker_id} using drawMarker")
-            except Exception as e2:
-                print(f"Error with drawMarker: {e2}")
-                # Create a blank marker with the ID as text as last resort
-                marker_image.fill(255)  # White background
-                cv2.putText(
-                    marker_image,
-                    f"ID: {marker_id}",
-                    (size//4, size//2),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.0,
-                    0,  # Black text
-                    2
-                )
-                print(f"Using text fallback for marker ID {marker_id}")
-    else:
-        # For older OpenCV versions, use the traditional API
-        marker_image = cv2.aruco.drawMarker(aruco_dict, marker_id, size, marker_image, 1)
+        except Exception as e2:
+            print(f"Error in fallback method: {e2}")
+            # Create a blank marker with the ID as text as last resort
+            marker_image = np.ones((size, size), dtype=np.uint8) * 255  # White background
+            cv2.putText(
+                marker_image,
+                f"ID: {marker_id}",
+                (size//4, size//2),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                0,  # Black text
+                2
+            )
+            print(f"Using text fallback for marker ID {marker_id}")
     
     # Add a white border
     border_size = size // 10
     bordered_image = np.ones((size + 2 * border_size, size + 2 * border_size), dtype=np.uint8) * 255
     bordered_image[border_size:border_size+size, border_size:border_size+size] = marker_image
+    
+    # Verify the bordered image is not blank
+    white_pixels = np.sum(bordered_image == 255)
+    black_pixels = np.sum(bordered_image == 0)
+    print(f"Bordered image stats - White pixels: {white_pixels}, Black pixels: {black_pixels}")
+    if black_pixels == 0:
+        print("WARNING: Final bordered image appears to be blank (no black pixels)")
     
     return bordered_image
 
