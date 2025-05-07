@@ -150,13 +150,23 @@ except Exception as e:
                 # Store the method to use later
                 dictionary_method = "constructor"
             except Exception as e4:
-                print(f"Error verifying ArUco module: {str(e4)}")
-                print("ArUco module found but not working correctly")
-                print("\nDetailed error information:")
-                print(f"Dictionary_get error: {str(e)}")
-                print(f"Dictionary.get error: {str(e2)}")
-                print(f"Dictionary.create error: {str(e3)}")
-                print(f"Dictionary constructor error: {str(e4)}")
+                # Try with _markerSize parameter (for OpenCV 4.12.0-dev and newer)
+                try:
+                    ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+                    # In OpenCV 4.12.0-dev, Dictionary constructor needs marker size (6 for 6x6 dict)
+                    aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                    print("ArUco module successfully loaded and verified (using Dictionary with markerSize)")
+                    # Store the method to use later
+                    dictionary_method = "constructor_with_size"
+                except Exception as e5:
+                    print(f"Error verifying ArUco module: {str(e5)}")
+                    print("ArUco module found but not working correctly")
+                    print("\nDetailed error information:")
+                    print(f"Dictionary_get error: {str(e)}")
+                    print(f"Dictionary.get error: {str(e2)}")
+                    print(f"Dictionary.create error: {str(e3)}")
+                    print(f"Dictionary constructor error: {str(e4)}")
+                    print(f"Dictionary with markerSize error: {str(e5)}")
                 print("\nPlease check your OpenCV installation and version.")
                 sys.exit(1)
 
@@ -331,6 +341,9 @@ class OakDArUcoDetector:
             self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
         elif dictionary_method == "constructor":
             self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+        elif dictionary_method == "constructor_with_size":
+            # For OpenCV 4.12.0-dev which needs marker size
+            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
         else:
             # Fallback to trying all methods
             try:
@@ -342,7 +355,11 @@ class OakDArUcoDetector:
                     try:
                         self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
                     except:
-                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+                        try:
+                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
+                        except:
+                            # Last try with marker size parameter for OpenCV 4.12.0-dev
+                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
         
         # Initialize detector parameters
         try:
