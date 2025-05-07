@@ -1411,14 +1411,34 @@ class OakDArUcoDetector:
                     
                     if retval:
                         # Draw the CharucoBoard axes
-                        cv2.aruco.drawAxis(
-                            markers_frame,
-                            self.camera_matrix,
-                            self.dist_coeffs,
-                            charuco_rvec,
-                            charuco_tvec,
-                            0.2  # Larger axis length for the board
-                        )
+                        # Try to use drawAxis - handle API changes in OpenCV 4.12+
+                        try:
+                            cv2.aruco.drawAxis(
+                                markers_frame,
+                                self.camera_matrix,
+                                self.dist_coeffs,
+                                charuco_rvec,
+                                charuco_tvec,
+                                0.2  # Larger axis length for the board
+                            )
+                        except AttributeError:
+                            # Fallback for OpenCV 4.12+ where drawAxis might be moved
+                            try:
+                                # Try using cv2.drawFrameAxes instead (newer OpenCV versions)
+                                cv2.drawFrameAxes(
+                                    markers_frame,
+                                    self.camera_matrix,
+                                    self.dist_coeffs,
+                                    charuco_rvec,
+                                    charuco_tvec,
+                                    0.2  # Larger axis length for the board
+                                )
+                            except Exception as axis_err:
+                                # If all visualization methods fail, just draw a circle at the center
+                                if charuco_corners is not None and len(charuco_corners) > 0:
+                                    center = np.mean(charuco_corners, axis=0).astype(int)
+                                    cv2.circle(markers_frame, tuple(center[0]), 20, (255, 0, 255), 2)
+                                print(f"Using fallback visualization for CharucoBoard - axis drawing failed: {axis_err}")
                         
                         # Calculate distance to CharucoBoard (from tvec)
                         charuco_distance = np.linalg.norm(charuco_tvec) * 1000  # Convert to mm
@@ -1451,12 +1471,57 @@ class OakDArUcoDetector:
             try:
                 # Ensure we have valid calibration data
                 if self.camera_matrix is not None and self.dist_coeffs is not None:
-                    rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                        corners, 
-                        MARKER_SIZE, 
-                        self.camera_matrix, 
-                        self.dist_coeffs
-                    )
+                    # Handle API changes in OpenCV 4.12+
+                    try:
+                        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                            corners,
+                            MARKER_SIZE,
+                            self.camera_matrix,
+                            self.dist_coeffs
+                        )
+                    except AttributeError:
+                        # For OpenCV 4.12+, try alternative approach
+                        try:
+                            # Create temporary arrays to store results
+                            rvecs = []
+                            tvecs = []
+                            
+                            # Process each marker individually
+                            for i in range(len(corners)):
+                                # Create object points for a square marker
+                                objPoints = np.array([
+                                    [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                    [MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                                    [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
+                                    [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
+                                ], dtype=np.float32)
+                                
+                                # Get image points from corners
+                                imgPoints = corners[i][0].astype(np.float32)
+                                
+                                # Use solvePnP to get pose
+                                success, rvec, tvec = cv2.solvePnP(
+                                    objPoints,
+                                    imgPoints,
+                                    self.camera_matrix,
+                                    self.dist_coeffs
+                                )
+                                
+                                if success:
+                                    rvecs.append(rvec)
+                                    tvecs.append(tvec)
+                            
+                            # Convert to numpy arrays with the same shape as the original function
+                            if len(rvecs) > 0:
+                                rvecs = np.array(rvecs)
+                                tvecs = np.array(tvecs)
+                            else:
+                                rvecs = None
+                                tvecs = None
+                        except Exception as e:
+                            print(f"Alternative pose estimation failed: {e}")
+                            rvecs = None
+                            tvecs = None
                     
                     # Check for valid pose data
                     if rvecs is not None and tvecs is not None:
@@ -1476,14 +1541,34 @@ class OakDArUcoDetector:
                                     smooth_factor = 0.7  # Higher values mean less smoothing
                                     rvecs[i] = smooth_factor * rvecs[i] + (1 - smooth_factor) * self.prev_rvecs[i]
                                 
-                                cv2.aruco.drawAxis(
-                                    markers_frame, 
-                                    self.camera_matrix, 
-                                    self.dist_coeffs, 
-                                    rvecs[i], 
-                                    tvecs[i], 
-                                    axis_length
-                                )
+                                # Try to use drawAxis - handle API changes in OpenCV 4.12+
+                                try:
+                                    cv2.aruco.drawAxis(
+                                        markers_frame,
+                                        self.camera_matrix,
+                                        self.dist_coeffs,
+                                        rvecs[i],
+                                        tvecs[i],
+                                        axis_length
+                                    )
+                                except AttributeError:
+                                    # Fallback for OpenCV 4.12+ where drawAxis might be moved
+                                    try:
+                                        # Try using cv2.drawFrameAxes instead (newer OpenCV versions)
+                                        cv2.drawFrameAxes(
+                                            markers_frame,
+                                            self.camera_matrix,
+                                            self.dist_coeffs,
+                                            rvecs[i],
+                                            tvecs[i],
+                                            axis_length
+                                        )
+                                    except Exception as axis_err:
+                                        # If all visualization methods fail, just draw a circle at the marker center
+                                        center = np.mean(corners[i][0], axis=0).astype(int)
+                                        cv2.circle(markers_frame, tuple(center), int(axis_length * 10), (0, 255, 0), 2)
+                                        if i == 0:  # Only print once to avoid spam
+                                            print(f"Using fallback visualization (circle) - axis drawing failed: {axis_err}")
                                 
                                 # Calculate Euler angles
                                 rotation_matrix = cv2.Rodrigues(rvecs[i])[0]
