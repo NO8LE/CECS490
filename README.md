@@ -121,7 +121,7 @@ Options:
 - `--performance, -p`: Enable high performance mode on Jetson
 - `--stream, -st`: Enable video streaming over RTP/UDP
 - `--stream-ip IP`: IP address to stream to (default: 192.168.2.1)
-- `--stream-port PORT`: Port to stream to (default: 5000)
+- `--stream-port PORT`: Port to stream to (default: 5600)
 - `--stream-bitrate BITRATE`: Streaming bitrate in bits/sec (default: 4000000)
 - `--headless`: Run in headless mode (no GUI windows, for SSH sessions)
 

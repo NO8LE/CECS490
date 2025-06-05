@@ -10,11 +10,11 @@ Usage:
   python3 gcs_video_receiver.py [--port PORT] [--display-info]
 
 Options:
-  --port PORT           UDP port to receive the stream (default: 5000)
+  --port PORT           UDP port to receive the stream (default: 5600)
   --display-info, -d    Display additional stream information
 
 Example:
-  python3 gcs_video_receiver.py --port 5000 --display-info
+  python3 gcs_video_receiver.py --port 5600 --display-info
 
 Press 'q' to exit the program.
 """
@@ -27,7 +27,7 @@ import numpy as np
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='GCS Video Receiver for UAV Perception Stream')
-    parser.add_argument('--port', type=int, default=5000, help='UDP port to receive the stream (default: 5000)')
+    parser.add_argument('--port', type=int, default=5600, help='UDP port to receive the stream (default: 5600)')
     parser.add_argument('--display-info', '-d', action='store_true', help='Display additional stream information')
     args = parser.parse_args()
     

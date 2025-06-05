@@ -346,7 +346,7 @@ if [ -f /etc/ssh/sshd_config ]; then
     run_cmd "service ssh restart"
     
     # Configure UFW
-    run_cmd "ufw allow from 192.168.1.0/28 to any port 3322"
+    run_cmd "ufw allow from 192.168.2.0/28 to any port 3322"
     run_cmd "ufw enable"
 else
     echo "[WARNING] SSH config file not found, skipping SSH configuration"

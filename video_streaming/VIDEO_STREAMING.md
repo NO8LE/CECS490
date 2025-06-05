@@ -20,13 +20,13 @@ To enable video streaming, use the `--stream` flag when starting the ArUco detec
 python3 oak_d_aruco_6x6_detector.py --stream
 ```
 
-By default, this will stream to IP address `192.168.251.105` (GCS) on port `5000`. You can customize these settings:
+By default, this will stream to IP address `192.168.2.1` (GCS) on port `5600`. You can customize these settings:
 
 ```bash
-python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.251.105 --stream-port 5001
+python3 oak_d_aruco_6x6_detector.py --stream --stream-ip 192.168.2.1 --stream-port 5001
 ```
 
-Note: The Jetson is expected to be on IP address `192.168.251.245` and the GCS on `192.168.251.105`.
+Note: The Jetson is expected to be on IP address `192.168.2.2` and the GCS on `192.168.2.1`.
 
 ### Additional Streaming Options
 
@@ -53,11 +53,11 @@ There are multiple ways to view the stream on the GCS:
 The included Python receiver script provides a simple way to view the stream:
 
 ```bash
-python3 gcs_video_receiver.py --port 5000
+python3 gcs_video_receiver.py --port 5600
 ```
 
 Options:
-- `--port`: UDP port to receive the stream (default: 5000)
+- `--port`: UDP port to receive the stream (default: 5600)
 - `--display-info`: Display additional stream information like FPS and resolution
 
 ### 2. Using VLC Media Player
@@ -73,10 +73,10 @@ Options:
 ffplay provides a low-latency option for viewing the stream:
 
 ```bash
-ffplay -fflags nobuffer -flags low_delay -framedrop -strict experimental "udp://@:5000?buffer_size=120000"
+ffplay -fflags nobuffer -flags low_delay -framedrop -strict experimental "udp://@:5600?buffer_size=120000"
 ```
 
-Replace `5000` with your port number if you changed it.
+Replace `5600` with your port number if you changed it.
 
 ## Network Configuration
 
@@ -88,16 +88,16 @@ For the streaming functionality to work properly, certain network ports need to 
 
 1. **On the Jetson (sender)**:
    - No specific inbound ports need to be opened
-   - Outbound UDP traffic to the GCS IP on the specified port (default: 5000) must be allowed
+   - Outbound UDP traffic to the GCS IP on the specified port (default: 5600) must be allowed
 
 2. **On the GCS (receiver)**:
-   - Inbound UDP traffic on the specified port (default: 5000) must be allowed
+   - Inbound UDP traffic on the specified port (default: 5600) must be allowed
    - Make sure your firewall allows incoming UDP traffic on this port
 
 #### For MJPEG/HTTP Streaming (Flask)
 
 1. **On the Jetson (sender)**:
-   - Inbound TCP traffic on the HTTP port (default: 5000) must be allowed
+   - Inbound TCP traffic on the HTTP port (default: 5600) must be allowed
    - Make sure your firewall allows incoming TCP connections on this port
 
 2. **On the GCS (receiver)**:
@@ -108,14 +108,14 @@ For the streaming functionality to work properly, certain network ports need to 
 
 #### Ubuntu/Debian (including Jetson)
 
-To allow incoming UDP traffic on port 5000:
+To allow incoming UDP traffic on port 5600:
 ```bash
-sudo ufw allow 5000/udp
+sudo ufw allow 5600/udp
 ```
 
-To allow incoming TCP traffic on port 5000 (for MJPEG streaming):
+To allow incoming TCP traffic on port 5600 (for MJPEG streaming):
 ```bash
-sudo ufw allow 5000/tcp
+sudo ufw allow 5600/tcp
 ```
 
 #### Windows
@@ -124,7 +124,7 @@ sudo ufw allow 5000/tcp
 2. Create a new Inbound Rule
 3. Select "Port" as the rule type
 4. Select "UDP" or "TCP" as the protocol
-5. Enter "5000" as the specific local port
+5. Enter "5600" as the specific local port
 6. Allow the connection
 7. Apply the rule to all network profiles
 8. Name the rule (e.g., "UAV Stream")
@@ -138,7 +138,7 @@ A utility script is provided to help verify that your network is properly config
 ```
 
 Options:
-- `--port PORT`: Port to check (default: 5000)
+- `--port PORT`: Port to check (default: 5600)
 - `--mode MODE`: Streaming mode: rtp or http (default: rtp)
 - `--ip IP`: Target IP address to check connectivity with
 - `--no-firewall`: Skip firewall checks
@@ -147,11 +147,11 @@ Options:
 Examples:
 
 ```bash
-# Check RTP/UDP configuration for streaming to 192.168.1.100
-./check_network_config.sh --ip 192.168.1.100
+# Check RTP/UDP configuration for streaming to 192.168.2.1
+./check_network_config.sh --ip 192.168.2.1
 
 # Check HTTP/MJPEG configuration on port 8080
-./check_network_config.sh --mode http --port 8080 --ip 192.168.1.100
+./check_network_config.sh --mode http --port 8080 --ip 192.168.2.1
 ```
 
 The script will:
@@ -172,13 +172,13 @@ The script will:
 5. Use network diagnostic tools to verify connectivity:
    ```bash
    # Check if the port is open on the GCS
-   nc -zvu <GCS_IP> 5000
+   nc -zvu <GCS_IP> 5600
    
    # Check firewall status on Ubuntu/Debian
    sudo ufw status
    
    # Check if the UDP port is in use
-   netstat -tuln | grep 5000
+   netstat -tuln | grep 5600
    ```
 
 ### High Latency

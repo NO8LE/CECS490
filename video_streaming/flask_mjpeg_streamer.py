@@ -11,7 +11,7 @@ Usage:
   python3 flask_mjpeg_streamer.py [--port PORT] [--quality QUALITY] [--webcam]
 
 Options:
-  --port PORT           HTTP port to serve the stream (default: 5000)
+  --port PORT           HTTP port to serve the stream (default: 5600)
   --quality QUALITY     JPEG quality (1-100, default: 80)
   --webcam, -w          Use webcam instead of test pattern
   --width WIDTH         Video width (default: 1280)
@@ -19,11 +19,11 @@ Options:
   --fps FPS             Target frames per second (default: 30)
 
 Example:
-  python3 flask_mjpeg_streamer.py --port 5000 --quality 70
+  python3 flask_mjpeg_streamer.py --port 5600 --quality 70
   python3 flask_mjpeg_streamer.py --webcam
 
 To view the stream, open a browser and navigate to:
-  http://<jetson_ip>:5000/video_feed
+  http://<jetson_ip>:5600/video_feed
 
 Press Ctrl+C to exit.
 """
@@ -294,7 +294,7 @@ def create_app(args):
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Flask MJPEG Streamer')
-    parser.add_argument('--port', type=int, default=5000, help='HTTP port to serve the stream (default: 5000)')
+    parser.add_argument('--port', type=int, default=5600, help='HTTP port to serve the stream (default: 5600)')
     parser.add_argument('--quality', type=int, default=80, help='JPEG quality (1-100, default: 80)')
     parser.add_argument('--webcam', '-w', action='store_true', help='Use webcam instead of test pattern')
     parser.add_argument('--width', type=int, default=1280, help='Video width (default: 1280)')

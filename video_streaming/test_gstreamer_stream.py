@@ -11,8 +11,8 @@ Usage:
   python3 test_gstreamer_stream.py [--ip IP] [--port PORT] [--bitrate BITRATE] [--webcam]
 
 Options:
-  --ip IP               IP address to stream to (default: 192.168.1.100)
-  --port PORT           Port to stream to (default: 5000)
+  --ip IP               IP address to stream to (default: 192.168.2.100)
+  --port PORT           Port to stream to (default: 5600)
   --bitrate BITRATE     Streaming bitrate in bits/sec (default: 4000000)
   --webcam, -w          Use webcam instead of test pattern
   --width WIDTH         Video width (default: 1280)
@@ -101,8 +101,8 @@ def create_test_pattern(width, height, frame_count):
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='GStreamer Streaming Test Script')
-    parser.add_argument('--ip', type=str, default='192.168.251.105', help='IP address to stream to (default: 192.168.251.105)')
-    parser.add_argument('--port', type=int, default=5000, help='Port to stream to (default: 5000)')
+    parser.add_argument('--ip', type=str, default='192.168.2.1', help='IP address to stream to (default: 192.168.2.1)')
+    parser.add_argument('--port', type=int, default=5600, help='Port to stream to (default: 5600)')
     parser.add_argument('--bitrate', type=int, default=4000000, help='Streaming bitrate in bits/sec (default: 4000000)')
     parser.add_argument('--webcam', '-w', action='store_true', help='Use webcam instead of test pattern')
     parser.add_argument('--width', type=int, default=1280, help='Video width (default: 1280)')

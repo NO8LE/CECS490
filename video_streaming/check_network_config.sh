@@ -4,15 +4,15 @@
 # This script helps verify that the network is properly configured for video streaming
 
 # Default values
-PORT=5000
+PORT=5600
 MODE="rtp"  # rtp or http
 CHECK_FIREWALL=true
 CHECK_CONNECTIVITY=true
 TARGET_IP=""
 
 # Default IP addresses for this setup
-JETSON_IP="192.168.251.245"
-GCS_IP="192.168.251.105"
+JETSON_IP="192.168.2.2"
+GCS_IP="192.168.2.1"
 
 # Display help message
 show_help() {
@@ -29,7 +29,7 @@ show_help() {
     echo "  --no-connectivity          Skip connectivity checks"
     echo ""
     echo "Example:"
-    echo "  $0 --port 5001 --mode http --ip 192.168.1.100"
+    echo "  $0 --port 5001 --mode http --ip 192.168.2.100"
     echo ""
 }
 
@@ -230,13 +230,13 @@ if [[ "$MODE" == "rtp" ]]; then
     echo "For RTP/UDP streaming:"
     echo "  - On the GCS (receiver, $GCS_IP), ensure port $PORT/udp is open for incoming connections"
     echo "  - On the Jetson (sender, $JETSON_IP), no specific inbound ports need to be opened"
-    echo "  - Make sure both devices are on the same network (192.168.251.x subnet)"
+    echo "  - Make sure both devices are on the same network (192.168.2.x subnet)"
     echo "  - If using a VPN, ensure it allows UDP traffic on port $PORT"
 else
     echo "For HTTP/MJPEG streaming:"
     echo "  - On the Jetson (sender, $JETSON_IP), ensure port $PORT/tcp is open for incoming connections"
     echo "  - On the GCS (receiver, $GCS_IP), no specific inbound ports need to be opened"
-    echo "  - Make sure both devices are on the same network (192.168.251.x subnet)"
+    echo "  - Make sure both devices are on the same network (192.168.2.x subnet)"
 fi
 
 echo ""

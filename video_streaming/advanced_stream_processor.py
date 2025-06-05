@@ -18,12 +18,12 @@ Usage:
   python3 advanced_stream_processor.py [--port PORT] [--mode MODE] [--record]
 
 Options:
-  --port PORT           UDP port to receive the stream (default: 5000)
+  --port PORT           UDP port to receive the stream (default: 5600)
   --mode MODE           Processing mode: normal, edges, hsv, or custom (default: normal)
   --record              Record the received video to a file
 
 Example:
-  python3 advanced_stream_processor.py --port 5000 --mode edges --record
+  python3 advanced_stream_processor.py --port 5600 --mode edges --record
 
 Press 'q' to exit, 'm' to cycle through modes, 'r' to toggle recording.
 """
@@ -36,7 +36,7 @@ import os
 from datetime import datetime
 
 class StreamProcessor:
-    def __init__(self, port=5000, mode="normal", record=False):
+    def __init__(self, port=5600, mode="normal", record=False):
         self.port = port
         self.mode = mode
         self.record = record
@@ -238,7 +238,7 @@ class StreamProcessor:
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Advanced Stream Processor for UAV Video Feed')
-    parser.add_argument('--port', type=int, default=5000, help='UDP port to receive the stream (default: 5000)')
+    parser.add_argument('--port', type=int, default=5600, help='UDP port to receive the stream (default: 5600)')
     parser.add_argument('--mode', choices=['normal', 'edges', 'hsv', 'custom'], default='normal',
                         help='Processing mode: normal, edges, hsv, or custom (default: normal)')
     parser.add_argument('--record', action='store_true', help='Enable video recording capability')
@@ -246,8 +246,8 @@ def main():
     
     # Print network configuration information
     print("Network Configuration:")
-    print("  Jetson (sender): 192.168.251.245")
-    print("  GCS (receiver): 192.168.251.105")
+    print("  Jetson (sender): 192.168.2.2")
+    print("  GCS (receiver): 192.168.2.1")
     print(f"  Receiving on port: {args.port}")
     print("")
     

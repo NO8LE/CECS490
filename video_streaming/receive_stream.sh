@@ -4,7 +4,7 @@
 # This script helps view the video stream from the UAV on the GCS
 
 # Default values
-STREAM_PORT=5000
+STREAM_PORT=5600
 DISPLAY_INFO=false
 USE_FFPLAY=false
 USE_VLC=false
