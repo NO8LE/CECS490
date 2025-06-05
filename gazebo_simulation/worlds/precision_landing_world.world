@@ -1,0 +1,171 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="precision_landing_world">
+    <!-- Physics settings -->
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>100</iters>
+          <sor>1.3</sor>
+        </solver>
+      </ode>
+    </physics>
+
+    <!-- Scene lighting -->
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- Sun light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>50 50</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>50 50</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grass</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 30x30 yard landing zone -->
+    <model name="landing_zone">
+      <static>true</static>
+      <pose>0 0 0.01 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>27.4 27.4 0.01</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <cast_shadows>false</cast_shadows>
+          <geometry>
+            <box>
+              <size>27.4 27.4 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Boundary markers for visual reference -->
+    <model name="boundary_marker_1">
+      <static>true</static>
+      <pose>13.7 13.7 0.1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.2</size></box>
+          </geometry>
+          <material><ambient>1 0 0 1</ambient></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_marker_2">
+      <static>true</static>
+      <pose>-13.7 13.7 0.1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.2</size></box>
+          </geometry>
+          <material><ambient>1 0 0 1</ambient></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_marker_3">
+      <static>true</static>
+      <pose>13.7 -13.7 0.1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.2</size></box>
+          </geometry>
+          <material><ambient>1 0 0 1</ambient></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="boundary_marker_4">
+      <static>true</static>
+      <pose>-13.7 -13.7 0.1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.5 0.2</size></box>
+          </geometry>
+          <material><ambient>1 0 0 1</ambient></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ArUco marker models will be included by reference during simulation startup -->
+    <!-- These will be defined separately and spawned procedurally -->
+
+    <!-- Wind plugin for realistic flight conditions -->
+    <plugin name="wind" filename="libgazebo_ros_wind.so">
+      <frameId>world</frameId>
+      <robotNamespace>/wind</robotNamespace>
+      <windVelocityMean>2.0</windVelocityMean>
+      <windVelocityMax>5.0</windVelocityMax>
+      <windVelocityVariance>1.0</windVelocityVariance>
+      <windDirection>1 1 0</windDirection>
+      <windGustDirection>0 1 0</windGustDirection>
+      <windGustDuration>2</windGustDuration>
+      <windGustStart>10</windGustStart>
+      <windGustVelocityMean>3</windGustVelocityMean>
+      <windGustVelocityMax>10.0</windGustVelocityMax>
+      <windGustVelocityVariance>2</windGustVelocityVariance>
+    </plugin>
+  </world>
+</sdf>
