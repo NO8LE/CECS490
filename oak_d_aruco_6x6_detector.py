@@ -73,33 +73,10 @@ try:
 except:
     print("CUDA not available in OpenCV, using CPU")
 
-# Import ArUco module - try different approaches for different OpenCV installations
+# Import ArUco module - OpenCV 4.10
 try:
-    # First try direct import from cv2
-    if hasattr(cv2, 'aruco'):
-        print("Using cv2.aruco")
-        aruco = cv2.aruco
-    else:
-        # Try to import as a separate module (older OpenCV versions)
-        try:
-            from cv2 import aruco
-            print("Using from cv2 import aruco")
-            # Make it available as cv2.aruco for consistency
-            cv2.aruco = aruco
-        except ImportError:
-            # For Jetson with custom OpenCV builds
-            try:
-                sys.path.append('/usr/lib/python3/dist-packages/cv2/python-3.10')
-                from cv2 import aruco
-                print("Using Jetson-specific aruco import")
-                cv2.aruco = aruco
-            except (ImportError, FileNotFoundError):
-                print("Error: OpenCV ArUco module not found.")
-                print("Please ensure opencv-contrib-python is installed:")
-                print("  pip install opencv-contrib-python")
-                print("\nFor Jetson platforms, you might need to install it differently:")
-                print("  sudo apt-get install python3-opencv")
-                sys.exit(1)
+    print("Using cv2.aruco with OpenCV 4.10")
+    aruco = cv2.aruco
 except Exception as e:
     print(f"Error importing ArUco module: {str(e)}")
     print("Please ensure opencv-contrib-python is installed correctly")
@@ -133,91 +110,38 @@ except ImportError:
     print("Warning: OpenCV 4.10.0 ArUco fixes not found. Using standard methods.")
     USE_ARUCO_FIX = False
 
-# Verify ArUco module is working
+# Verify ArUco module is working for OpenCV 4.10
 try:
-    # For OpenCV 4.10.0, use the new API with marker size parameter
-    if cv2.__version__.startswith("4.10"):
-        # Create a dictionary with the required marker size parameter
-        ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-        
-        if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
-            print("Using fixed ArUco dictionary creation for OpenCV 4.10.0")
-            aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
-            dictionary_method = "opencv4.10_fixed"
-        else:
-            aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-            
-            # Verify by creating a detector (new API)
-            detector_params = cv2.aruco.DetectorParameters()
-            detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
-
-            # If we get here without errors, the ArUco module is working
-            print(f"ArUco module successfully loaded and verified for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
-            dictionary_method = "opencv4.10_plus"
+    # Define the dictionary type for 6x6 ArUco markers
+    ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
+    
+    # Use the fixed dictionary if available, otherwise use standard method
+    if USE_ARUCO_FIX:
+        print("Using fixed ArUco dictionary creation for OpenCV 4.10.0")
+        aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
+        dictionary_method = "opencv4.10_fixed"
     else:
-        # Try older API methods for earlier OpenCV versions
         try:
-            # Try to access a dictionary to verify ArUco is working
-            ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-            aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
-            print("ArUco module successfully loaded and verified (using Dictionary_get)")
-            # Store the method to use later
-            dictionary_method = "old"
+            # Preferred method for OpenCV 4.10
+            aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+            print("Using getPredefinedDictionary for ArUco dictionary")
+            dictionary_method = "opencv4.10_predefined"
         except Exception as e:
-            # If Dictionary_get fails, try the newer API
-            try:
-                ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-                aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
-                print("ArUco module successfully loaded and verified (using Dictionary.get)")
-                # Store the method to use later
-                dictionary_method = "new"
-            except Exception as e2:
-                # If both methods fail, try to create a dictionary directly
-                try:
-                    # Try to create a dictionary directly (OpenCV 4.x approach)
-                    ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-                    aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
-                    print("ArUco module successfully loaded and verified (using Dictionary.create)")
-                    # Store the method to use later
-                    dictionary_method = "create"
-                except Exception as e3:
-                    # Last resort: try to create a dictionary with parameters
-                    try:
-                        # Try to create a dictionary with parameters (another approach)
-                        ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-                        aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
-                        print("ArUco module successfully loaded and verified (using Dictionary constructor)")
-                        # Store the method to use later
-                        dictionary_method = "constructor"
-                    except Exception as e4:
-                        # Try with marker size parameter as a last resort
-                        try:
-                            ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-                            aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                            print("ArUco module successfully loaded and verified (using Dictionary with markerSize)")
-                            # Store the method to use later
-                            dictionary_method = "constructor_with_size"
-                        except Exception as e5:
-                            print(f"Error verifying ArUco module: {str(e5)}")
-                            print("ArUco module found but not working correctly")
-                            print("\nDetailed error information:")
-                            print(f"Dictionary_get error: {str(e)}")
-                            print(f"Dictionary.get error: {str(e2)}")
-                            print(f"Dictionary.create error: {str(e3)}")
-                            print(f"Dictionary constructor error: {str(e4)}")
-                            print(f"Dictionary with markerSize error: {str(e5)}")
-                        print("\nPlease check your OpenCV installation and version.")
-                        # Add detailed version info to help with debugging
-                        print(f"\nDetailed OpenCV version info:")
-                        print(f"OpenCV version: {cv2.__version__}")
-                        print(f"Build information: {cv2.getBuildInformation()}")
-                        sys.exit(1)
+            print(f"Error with getPredefinedDictionary: {e}")
+            # Fallback method
+            aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+            print("Using Dictionary constructor with markerSize=6")
+            dictionary_method = "opencv4.10_constructor"
+    
+    # Verify by creating a detector
+    detector_params = cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
+    print(f"ArUco module successfully loaded and verified for OpenCV {cv2.__version__}")
+    
 except Exception as e:
-    print(f"Unexpected error verifying ArUco module: {str(e)}")
-    print("\nPlease check your OpenCV installation and version.")
-    print(f"\nDetailed OpenCV version info:")
+    print(f"Error verifying ArUco module: {str(e)}")
+    print("Please check your OpenCV installation and version.")
     print(f"OpenCV version: {cv2.__version__}")
-    print(f"Build information: {cv2.getBuildInformation()}")
     sys.exit(1)
 
 # ArUco marker side length in meters
@@ -388,118 +312,58 @@ class OakDArUcoDetector:
         self.min_pwm = 1000
         self.max_pwm = 2000
 
-        # Initialize ArUco detector based on OpenCV version
-        if cv2.__version__.startswith("4.10"):
-            # For OpenCV 4.10.0 - use the new API consistently
-            try:
-                print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
-                
-                # Use the fixed dictionary creation for OpenCV 4.10.0
-                if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
-                    print("Initializing ArUco detector with OpenCV 4.10.0 fixes")
-                    self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
-                else:
-                    # Create dictionary with marker size parameter
-                    self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-
-                # Create and configure detector parameters
-                self.aruco_params = cv2.aruco.DetectorParameters()
-
-                # Configure parameters with stricter settings to prevent false positives
-                # Adaptive thresholding parameters
-                self.aruco_params.adaptiveThreshWinSizeMin = 3
-                self.aruco_params.adaptiveThreshWinSizeMax = 23
-                self.aruco_params.adaptiveThreshWinSizeStep = 10
-                self.aruco_params.adaptiveThreshConstant = 7
-
-                # Contour filtering parameters - these are critical for preventing false detections
-                self.aruco_params.minMarkerPerimeterRate = 0.05  # Increase minimum size to prevent small false detections
-                self.aruco_params.maxMarkerPerimeterRate = 4.0
-                self.aruco_params.polygonalApproxAccuracyRate = 0.03  # More accurate corner detection
-                self.aruco_params.minCornerDistanceRate = 0.05  # Minimum distance between corners
-                self.aruco_params.minDistanceToBorder = 3  # Minimum distance from borders
-
-                # Corner refinement parameters
-                self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
-                self.aruco_params.cornerRefinementWinSize = 5
-                self.aruco_params.cornerRefinementMaxIterations = 30
-                self.aruco_params.cornerRefinementMinAccuracy = 0.1
-
-                # Error correction parameters - critical for preventing false positives
-                self.aruco_params.errorCorrectionRate = 0.6  # Increase error correction rate (default 0.6)
-                self.aruco_params.minOtsuStdDev = 5.0  # Minimum standard deviation for Otsu thresholding
-                self.aruco_params.perspectiveRemovePixelPerCell = 4  # Pixels per cell for perspective removal
-                self.aruco_params.perspectiveRemoveIgnoredMarginPerCell = 0.13  # Margin for perspective removal
-
-                # Create the detector
-                self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
-                print("Successfully created ArucoDetector for OpenCV 4.10")
-
-                # Store the method for reference
-                dictionary_method = "opencv4.10_detector"
-            except Exception as e:
-                print(f"Error initializing ArUco detector for OpenCV 4.10: {e}")
-                print("Falling back to basic initialization")
-
-                # Basic initialization as fallback
-                self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                self.aruco_params = cv2.aruco.DetectorParameters()
-                self.aruco_detector = None
-                dictionary_method = "basic_opencv4.10"
+        # Initialize ArUco detector for OpenCV 4.10
+        print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
+        
+        # Use the fixed dictionary creation if available
+        if USE_ARUCO_FIX:
+            print("Initializing ArUco detector with OpenCV 4.10.0 fixes")
+            self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
         else:
-            # For older OpenCV versions, use the method that worked during initialization
-            if dictionary_method == "old":
-                self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
-            elif dictionary_method == "new":
-                self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
-            elif dictionary_method == "create":
-                self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
-            elif dictionary_method == "constructor":
-                self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
-            else:
-                # Fallback to trying all methods
-                try:
-                    self.aruco_dict = cv2.aruco.Dictionary_get(ARUCO_DICT_TYPE)
-                except:
-                    try:
-                        self.aruco_dict = cv2.aruco.Dictionary.get(ARUCO_DICT_TYPE)
-                    except:
-                        try:
-                            self.aruco_dict = cv2.aruco.Dictionary.create(ARUCO_DICT_TYPE)
-                        except:
-                            try:
-                                self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE)
-                            except Exception as e:
-                                print(f"All dictionary creation methods failed: {e}")
-                                sys.exit(1)
-
-        # Initialize detector parameters specifically for OpenCV 4.10
-        try:
-            # For OpenCV 4.10.0
-            self.aruco_params = cv2.aruco.DetectorParameters()
-            print("Using cv2.aruco.DetectorParameters() for OpenCV 4.10")
-        except Exception as e:
-            print(f"Error creating detector parameters for OpenCV 4.10: {str(e)}")
-            # Try alternative methods
             try:
-                self.aruco_params = cv2.aruco.DetectorParameters.create()
-                print("Using cv2.aruco.DetectorParameters.create()")
-            except Exception as dp_e1:
-                try:
-                    self.aruco_params = cv2.aruco.DetectorParameters_create()
-                    print("Using cv2.aruco.DetectorParameters_create()")
-                except Exception as dp_e2:
-                    try:
-                        self.aruco_params = cv2.aruco.DetectorParameters()
-                        print("Using cv2.aruco.DetectorParameters()")
-                    except Exception as dp_e3:
-                        print(f"Error creating detector parameters: {str(dp_e3)}")
-                        print("Detailed detector parameter errors:")
-                        print(f"DetectorParameters.create(): {str(dp_e1)}")
-                        print(f"DetectorParameters_create(): {str(dp_e2)}")
-                        print(f"DetectorParameters(): {str(dp_e3)}")
-                        print("Using default parameters")
-                        self.aruco_params = None
+                # Preferred method for OpenCV 4.10
+                self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                print("Using getPredefinedDictionary for detector initialization")
+            except Exception as e:
+                print(f"Error with getPredefinedDictionary: {e}")
+                # Fallback method
+                self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                print("Using Dictionary constructor with markerSize=6")
+
+        # Create and configure detector parameters
+        self.aruco_params = cv2.aruco.DetectorParameters()
+
+        # Configure parameters with stricter settings to prevent false positives
+        # Adaptive thresholding parameters
+        self.aruco_params.adaptiveThreshWinSizeMin = 3
+        self.aruco_params.adaptiveThreshWinSizeMax = 23
+        self.aruco_params.adaptiveThreshWinSizeStep = 10
+        self.aruco_params.adaptiveThreshConstant = 7
+
+        # Contour filtering parameters - these are critical for preventing false detections
+        self.aruco_params.minMarkerPerimeterRate = 0.05  # Increase minimum size to prevent small false detections
+        self.aruco_params.maxMarkerPerimeterRate = 4.0
+        self.aruco_params.polygonalApproxAccuracyRate = 0.03  # More accurate corner detection
+        self.aruco_params.minCornerDistanceRate = 0.05  # Minimum distance between corners
+        self.aruco_params.minDistanceToBorder = 3  # Minimum distance from borders
+
+        # Corner refinement parameters
+        self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+        self.aruco_params.cornerRefinementWinSize = 5
+        self.aruco_params.cornerRefinementMaxIterations = 30
+        self.aruco_params.cornerRefinementMinAccuracy = 0.1
+
+        # Error correction parameters - critical for preventing false positives
+        self.aruco_params.errorCorrectionRate = 0.6  # Increase error correction rate (default 0.6)
+        self.aruco_params.minOtsuStdDev = 5.0  # Minimum standard deviation for Otsu thresholding
+        self.aruco_params.perspectiveRemovePixelPerCell = 4  # Pixels per cell for perspective removal
+        self.aruco_params.perspectiveRemoveIgnoredMarginPerCell = 0.13  # Margin for perspective removal
+
+        # Create the detector
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+        print("Successfully created ArucoDetector for OpenCV 4.10")
+
+        # Parameters have already been configured in the detector initialization above
 
         # Set initial detection profile (will be updated based on distance)
         self.current_profile = "medium"
@@ -1302,7 +1166,7 @@ class OakDArUcoDetector:
 
     def detect_aruco_markers(self, frame, simple_detection=False):
         """
-        Detect ArUco markers and CharucoBoard in the frame
+        Detect ArUco markers and CharucoBoard in the frame for OpenCV 4.10
 
         Args:
             frame: Input image
@@ -1319,167 +1183,152 @@ class OakDArUcoDetector:
         ids = None
         rejected = []
 
-        # For OpenCV 4.10.0 and newer, use the ArucoDetector API consistently
-        if cv2.__version__.startswith("4.10"):
-            try:
-                # Make sure we have a detector
-                if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
-                    # Create detector on-the-fly if needed - use fixed dictionary for OpenCV 4.10
-                    if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
-                        try:
-                            self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
-                            print("Using fixed ArUco dictionary creation for detection (OpenCV 4.10.0 fix)")
-                        except Exception as e:
-                            print(f"Error with fixed dictionary creation: {e}")
-                            # Fallback to standard method
-                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                            print("Falling back to Dictionary constructor with markerSize")
-                    else:
-                        try:
-                            self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
-                            print("Using getPredefinedDictionary for detection (primary method)")
-                        except Exception as e:
-                            print(f"Error with getPredefinedDictionary: {e}")
-                            # Fallback to Dictionary constructor
-                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                            print("Using Dictionary constructor with markerSize (fallback)")
+        # Using OpenCV 4.10 ArucoDetector API
+        try:
+            # Make sure we have a detector
+            if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
+                # Create detector - use fixed dictionary if available
+                if USE_ARUCO_FIX:
+                    try:
+                        self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
+                        print("Using fixed ArUco dictionary creation for detection (OpenCV 4.10.0 fix)")
+                    except Exception as e:
+                        print(f"Error with fixed dictionary creation: {e}")
+                        # Fallback to standard method
+                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                        print("Falling back to Dictionary constructor with markerSize")
+                else:
+                    try:
+                        self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                        print("Using getPredefinedDictionary for detection (primary method)")
+                    except Exception as e:
+                        print(f"Error with getPredefinedDictionary: {e}")
+                        # Fallback to Dictionary constructor
+                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                        print("Using Dictionary constructor with markerSize (fallback)")
 
-                    self.aruco_params = cv2.aruco.DetectorParameters()
+                self.aruco_params = cv2.aruco.DetectorParameters()
 
-                    # Configure detector parameters for better detection
-                    self.aruco_params.adaptiveThreshWinSizeMin = 3
-                    self.aruco_params.adaptiveThreshWinSizeMax = 23
-                    self.aruco_params.adaptiveThreshWinSizeStep = 10
-                    self.aruco_params.adaptiveThreshConstant = 7
-                    self.aruco_params.minMarkerPerimeterRate = 0.01  # Reduced from 0.03 to detect smaller markers
-                    self.aruco_params.maxMarkerPerimeterRate = 4.0
-                    self.aruco_params.polygonalApproxAccuracyRate = 0.1  # Increased from 0.05 for better detection
-                    self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
+                # Configure detector parameters for better detection
+                self.aruco_params.adaptiveThreshWinSizeMin = 3
+                self.aruco_params.adaptiveThreshWinSizeMax = 23
+                self.aruco_params.adaptiveThreshWinSizeStep = 10
+                self.aruco_params.adaptiveThreshConstant = 7
+                self.aruco_params.minMarkerPerimeterRate = 0.01  # Reduced from 0.03 to detect smaller markers
+                self.aruco_params.maxMarkerPerimeterRate = 4.0
+                self.aruco_params.polygonalApproxAccuracyRate = 0.1  # Increased from 0.05 for better detection
+                self.aruco_params.cornerRefinementMethod = 1  # CORNER_REFINE_SUBPIX
 
-                    # Add error correction parameters
-                    self.aruco_params.errorCorrectionRate = 0.8  # Increased for better detection
+                # Add error correction parameters
+                self.aruco_params.errorCorrectionRate = 0.8  # Increased for better detection
 
-                    # Additional parameters for better detection
-                    if hasattr(self.aruco_params, 'minCornerDistanceRate'):
-                        self.aruco_params.minCornerDistanceRate = 0.03  # Relaxed from default
-                    if hasattr(self.aruco_params, 'minDistanceToBorder'):
-                        self.aruco_params.minDistanceToBorder = 1  # Reduced to detect markers near borders
+                # Additional parameters for better detection
+                if hasattr(self.aruco_params, 'minCornerDistanceRate'):
+                    self.aruco_params.minCornerDistanceRate = 0.03  # Relaxed from default
+                if hasattr(self.aruco_params, 'minDistanceToBorder'):
+                    self.aruco_params.minDistanceToBorder = 1  # Reduced to detect markers near borders
 
-                    # Create detector
-                    self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+                # Create detector
+                self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
 
-                # Use the detector
-                corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
+            # Use the detector
+            corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
 
-                # Convert corners to the format expected by the rest of the code
-                # In OpenCV 4.10, corners might be returned in a different format
-                if ids is not None and len(ids) > 0:
-                    # Ensure corners is a list of arrays with shape (1, 4, 2)
-                    if not isinstance(corners, list):
-                        corners_list = []
-                        for i in range(len(ids)):
-                            corners_list.append(corners[i].reshape(1, 4, 2))
-                        corners = corners_list
-
-                    # Apply validation checks to filter out false detections
-                    valid_indices = []
-                    valid_corners = []
-                    valid_ids = []
-
-                    # Filter out false positives
+            # Convert corners to the format expected by the rest of the code
+            # In OpenCV 4.10, corners might be returned in a different format
+            if ids is not None and len(ids) > 0:
+                # Ensure corners is a list of arrays with shape (1, 4, 2)
+                if not isinstance(corners, list):
+                    corners_list = []
                     for i in range(len(ids)):
-                        marker_id = ids[i][0]
-                        marker_corners = corners[i]
+                        corners_list.append(corners[i].reshape(1, 4, 2))
+                    corners = corners_list
 
-                        # Check 1: Verify marker has a valid perimeter (minimum size)
-                        perimeter = cv2.arcLength(marker_corners[0], True)
-                        min_perimeter = gray.shape[0] * 0.01  # Reduced from 4% to 1% of image height
+                # Apply validation checks to filter out false detections
+                valid_indices = []
+                valid_corners = []
+                valid_ids = []
 
-                        # Check 2: Verify corner angles (should be close to 90 degrees)
-                        angles_valid = True
-                        for j in range(4):
-                            p1 = marker_corners[0][j]
-                            p2 = marker_corners[0][(j+1) % 4]
-                            p3 = marker_corners[0][(j+2) % 4]
+                # Filter out false positives
+                for i in range(len(ids)):
+                    marker_id = ids[i][0]
+                    marker_corners = corners[i]
 
-                            # Calculate vectors
-                            v1 = p1 - p2
-                            v2 = p3 - p2
+                    # Check 1: Verify marker has a valid perimeter (minimum size)
+                    perimeter = cv2.arcLength(marker_corners[0], True)
+                    min_perimeter = gray.shape[0] * 0.01  # Reduced from 4% to 1% of image height
 
-                            # Calculate angle
-                            dot = np.sum(v1 * v2)
-                            norm1 = np.linalg.norm(v1)
-                            norm2 = np.linalg.norm(v2)
+                    # Check 2: Verify corner angles (should be close to 90 degrees)
+                    angles_valid = True
+                    for j in range(4):
+                        p1 = marker_corners[0][j]
+                        p2 = marker_corners[0][(j+1) % 4]
+                        p3 = marker_corners[0][(j+2) % 4]
 
-                            # Avoid division by zero
-                            if norm1 > 0 and norm2 > 0:
-                                cos_angle = dot / (norm1 * norm2)
-                                # Limit to valid range due to numerical errors
-                                cos_angle = max(-1.0, min(1.0, cos_angle))
-                                angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
+                        # Calculate vectors
+                        v1 = p1 - p2
+                        v2 = p3 - p2
 
-                                # In a perfect square, opposite corners should have angle close to 90 degrees
-                                # Much more relaxed angle validation (from 35 to 50 degrees deviation)
-                                if abs(angle - 90) > 50:
-                                    angles_valid = False
-                                    break
-                            else:
+                        # Calculate angle
+                        dot = np.sum(v1 * v2)
+                        norm1 = np.linalg.norm(v1)
+                        norm2 = np.linalg.norm(v2)
+
+                        # Avoid division by zero
+                        if norm1 > 0 and norm2 > 0:
+                            cos_angle = dot / (norm1 * norm2)
+                            # Limit to valid range due to numerical errors
+                            cos_angle = max(-1.0, min(1.0, cos_angle))
+                            angle = np.abs(np.arccos(cos_angle) * 180 / np.pi)
+
+                            # In a perfect square, opposite corners should have angle close to 90 degrees
+                            # Much more relaxed angle validation (from 35 to 50 degrees deviation)
+                            if abs(angle - 90) > 50:
                                 angles_valid = False
                                 break
-
-                        # Check 3: Verify marker has a reasonable aspect ratio
-                        width = np.linalg.norm(marker_corners[0][0] - marker_corners[0][1])
-                        height = np.linalg.norm(marker_corners[0][1] - marker_corners[0][2])
-
-                        if width > 0 and height > 0:
-                            aspect_ratio = max(width/height, height/width)
-                            aspect_valid = aspect_ratio < 4.0  # Increased from 2.5 to allow more distorted views
                         else:
-                            aspect_valid = False
+                            angles_valid = False
+                            break
 
-                        # Consider the marker valid if it passes all checks
-                        # For debugging, print information about the marker validation
-                        if marker_id < 10:  # Only print for markers with low IDs to avoid spam
-                            print(f"Marker ID {marker_id} validation: perimeter={perimeter:.1f} (min={min_perimeter:.1f}), angles_valid={angles_valid}, aspect_ratio={aspect_ratio:.2f} (valid={aspect_valid})")
+                    # Check 3: Verify marker has a reasonable aspect ratio
+                    width = np.linalg.norm(marker_corners[0][0] - marker_corners[0][1])
+                    height = np.linalg.norm(marker_corners[0][1] - marker_corners[0][2])
 
-                        # More relaxed validation - only require perimeter check
-                        if perimeter >= min_perimeter:
-                            valid_indices.append(i)
-                            valid_corners.append(corners[i])
-                            valid_ids.append(ids[i])
-
-                    # Update with validated markers only
-                    if len(valid_indices) > 0:
-                        corners = valid_corners
-                        ids = np.array(valid_ids)
-                        print(f"Detected {len(ids)} valid markers out of {len(corners_list)} candidates using OpenCV 4.10 ArucoDetector API")
+                    if width > 0 and height > 0:
+                        aspect_ratio = max(width/height, height/width)
+                        aspect_valid = aspect_ratio < 4.0  # Increased from 2.5 to allow more distorted views
                     else:
-                        # No valid markers found
-                        corners = []
-                        ids = np.array([])
-                        print("All detected markers were filtered out as false positives")
+                        aspect_valid = False
+
+                    # Consider the marker valid if it passes all checks
+                    # For debugging, print information about the marker validation
+                    if marker_id < 10:  # Only print for markers with low IDs to avoid spam
+                        print(f"Marker ID {marker_id} validation: perimeter={perimeter:.1f} (min={min_perimeter:.1f}), angles_valid={angles_valid}, aspect_ratio={aspect_ratio:.2f} (valid={aspect_valid})")
+
+                    # More relaxed validation - only require perimeter check
+                    if perimeter >= min_perimeter:
+                        valid_indices.append(i)
+                        valid_corners.append(corners[i])
+                        valid_ids.append(ids[i])
+
+                # Update with validated markers only
+                if len(valid_indices) > 0:
+                    corners = valid_corners
+                    ids = np.array(valid_ids)
+                    print(f"Detected {len(ids)} valid markers out of {len(corners_list)} candidates")
                 else:
-                    # Initialize empty arrays if no markers detected
+                    # No valid markers found
                     corners = []
                     ids = np.array([])
-            except Exception as e:
-                print(f"Error in ArucoDetector: {str(e)}")
+                    print("All detected markers were filtered out as false positives")
+            else:
+                # Initialize empty arrays if no markers detected
                 corners = []
-                ids = None
-        else:
-            # For older OpenCV versions, use the traditional API
-            try:
-                corners, ids, rejected = cv2.aruco.detectMarkers(
-                    gray,
-                    self.aruco_dict,
-                    parameters=self.aruco_params
-                )
-                if ids is not None:
-                    print(f"Detected {len(ids)} markers using traditional API")
-            except Exception as e:
-                print(f"Error in cv2.aruco.detectMarkers: {str(e)}")
-                corners = []
-                ids = None
+                ids = np.array([])
+        except Exception as e:
+            print(f"Error in ArucoDetector: {str(e)}")
+            corners = []
+            ids = None
 
         # Try to detect CharucoBoard only if not in simple detection mode
         charuco_corners = None
@@ -1487,84 +1336,48 @@ class OakDArUcoDetector:
         if not simple_detection and ids is not None and len(ids) >= 4:
             # Check if this looks like a CharucoBoard pattern
             try:
-                # Create a CharucoBoard object for detection specifically for OpenCV 4.10
-                if cv2.__version__.startswith("4.10"):
-                    # For OpenCV 4.10
-                    try:
-                        # Create dictionary with getPredefinedDictionary (known to work with OpenCV 4.10)
-                        try:
-                            charuco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
-                            print("Using getPredefinedDictionary for CharucoBoard detection")
-                        except Exception as e:
-                            print(f"Error with getPredefinedDictionary for CharucoBoard: {e}")
-                            # Fallback to Dictionary constructor
-                            charuco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                            print("Using Dictionary constructor for CharucoBoard detection (fallback)")
+                # Create dictionary for CharucoBoard
+                try:
+                    charuco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                    print("Using getPredefinedDictionary for CharucoBoard detection")
+                except Exception as e:
+                    print(f"Error with getPredefinedDictionary for CharucoBoard: {e}")
+                    # Fallback to Dictionary constructor
+                    charuco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                    print("Using Dictionary constructor for CharucoBoard detection (fallback)")
 
-                        # Create CharucoBoard with the constructor or fixed method
-                        if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
-                            charuco_board = create_charuco_board_fixed(
-                                squares_x=6, 
-                                squares_y=6, 
-                                square_length=0.3048/6, 
-                                marker_length=0.3048/6*0.75, 
-                                dict_type=ARUCO_DICT_TYPE
-                            )
-                            print("Using fixed CharucoBoard creation for OpenCV 4.10.0")
-                        else:
-                            charuco_board = cv2.aruco.CharucoBoard(
-                                (6, 6),  # (squaresX, squaresY) as a tuple
-                                0.3048/6,  # squareLength: Board is 12 inches divided into 6 squares
-                                0.3048/6*0.75,  # markerLength: Markers are 75% of square size
-                                charuco_dict
-                            )
-
-                        # For OpenCV 4.10, we need to use the CharucoDetector
-                        charuco_params = cv2.aruco.CharucoParameters()
-                        charuco_detector = cv2.aruco.CharucoDetector(charuco_board, charuco_params)
-
-                        # Detect the board
-                        charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
-
-                        # Check if we have enough corners
-                        ret = charuco_corners is not None and len(charuco_corners) > 4
-                        if ret:
-                            print(f"Detected CharucoBoard with {len(charuco_corners)} corners using CharucoDetector")
-                        else:
-                            charuco_corners = None
-                            charuco_ids = None
-                    except Exception as e:
-                        print(f"Error with CharucoDetector: {e}")
-                        charuco_corners = None
-                        charuco_ids = None
+                # Create CharucoBoard with the constructor or fixed method
+                if USE_ARUCO_FIX:
+                    charuco_board = create_charuco_board_fixed(
+                        squares_x=6, 
+                        squares_y=6, 
+                        square_length=0.3048/6, 
+                        marker_length=0.3048/6*0.75, 
+                        dict_type=ARUCO_DICT_TYPE
+                    )
+                    print("Using fixed CharucoBoard creation for OpenCV 4.10.0")
                 else:
-                    # For older OpenCV versions
-                    if hasattr(cv2.aruco, 'CharucoBoard_create'):
-                        # Old API
-                        charuco_board = cv2.aruco.CharucoBoard_create(
-                            squaresX=6,
-                            squaresY=6,
-                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
-                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
-                            dictionary=self.aruco_dict
-                        )
-                    else:
-                        # New API
-                        charuco_board = cv2.aruco.CharucoBoard.create(
-                            squaresX=6,
-                            squaresY=6,
-                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
-                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
-                            dictionary=self.aruco_dict
-                        )
-
-                    # Interpolate the corners of the CharucoBoard
-                    ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-                        corners, ids, gray, charuco_board
+                    charuco_board = cv2.aruco.CharucoBoard(
+                        (6, 6),  # (squaresX, squaresY) as a tuple
+                        0.3048/6,  # squareLength: Board is 12 inches divided into 6 squares
+                        0.3048/6*0.75,  # markerLength: Markers are 75% of square size
+                        charuco_dict
                     )
 
-                    if ret and len(charuco_corners) > 4:
-                        print(f"Detected CharucoBoard with {len(charuco_corners)} corners")
+                # Use the CharucoDetector for OpenCV 4.10
+                charuco_params = cv2.aruco.CharucoParameters()
+                charuco_detector = cv2.aruco.CharucoDetector(charuco_board, charuco_params)
+
+                # Detect the board
+                charuco_corners, charuco_ids, marker_corners, marker_ids = charuco_detector.detectBoard(gray)
+
+                # Check if we have enough corners
+                ret = charuco_corners is not None and len(charuco_corners) > 4
+                if ret:
+                    print(f"Detected CharucoBoard with {len(charuco_corners)} corners using CharucoDetector")
+                else:
+                    charuco_corners = None
+                    charuco_ids = None
             except Exception as e:
                 print(f"Error detecting CharucoBoard: {e}")
                 charuco_corners = None
@@ -1625,76 +1438,55 @@ class OakDArUcoDetector:
                 cv2.aruco.drawDetectedCornersCharuco(markers_frame, charuco_corners, charuco_ids)
 
                 try:
-                    # Create a CharucoBoard object for pose estimation
-                    if hasattr(cv2.aruco, 'CharucoBoard_create'):
-                        # Old API
-                        charuco_board = cv2.aruco.CharucoBoard_create(
-                            squaresX=6,
-                            squaresY=6,
-                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
-                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
-                            dictionary=self.aruco_dict
+                    # Create a CharucoBoard object for pose estimation using OpenCV 4.10
+                    # Create or reuse the CharucoBoard from earlier
+                    if USE_ARUCO_FIX:
+                        charuco_board = create_charuco_board_fixed(
+                            squares_x=6, 
+                            squares_y=6, 
+                            square_length=0.3048/6, 
+                            marker_length=0.3048/6*0.75, 
+                            dict_type=ARUCO_DICT_TYPE
                         )
                     else:
-                        # New API
-                        charuco_board = cv2.aruco.CharucoBoard.create(
-                            squaresX=6,
-                            squaresY=6,
-                            squareLength=0.3048/6,  # Board is 12 inches divided into 6 squares
-                            markerLength=0.3048/6*0.75,  # Markers are 75% of square size
-                            dictionary=self.aruco_dict
+                        charuco_board = cv2.aruco.CharucoBoard(
+                            (6, 6),  # (squaresX, squaresY) as a tuple
+                            0.3048/6,  # squareLength: Board is 12 inches divided into 6 squares
+                            0.3048/6*0.75,  # markerLength: Markers are 75% of square size
+                            charuco_dict
                         )
 
-                    # Estimate the pose of the CharucoBoard for OpenCV 4.10
-                    if cv2.__version__.startswith("4.10"):
-                        try:
-                            # For OpenCV 4.10, we need to use solvePnP directly
-                            # Create object points from the CharucoBoard
-                            objPoints = []
-                            imgPoints = []
+                    # For OpenCV 4.10, use solvePnP directly
+                    # Create object points from the CharucoBoard
+                    objPoints = []
+                    imgPoints = []
 
-                            # Make sure we have valid charuco_corners and charuco_ids
-                            if charuco_corners is not None and charuco_ids is not None and len(charuco_corners) > 4:
-                                # Get the 3D coordinates of the corners from the board
-                                for i in range(len(charuco_ids)):
-                                    corner_id = charuco_ids[i][0]
-                                    # Calculate 3D position based on square size
-                                    row = corner_id // 7  # For a 6x6 board, there are 7 corners in each direction
-                                    col = corner_id % 7
-                                    objPoints.append([col * 0.3048/6, row * 0.3048/6, 0])
-                                    imgPoints.append(charuco_corners[i][0])
+                    # Make sure we have valid charuco_corners and charuco_ids
+                    if charuco_corners is not None and charuco_ids is not None and len(charuco_corners) > 4:
+                        # Get the 3D coordinates of the corners from the board
+                        for i in range(len(charuco_ids)):
+                            corner_id = charuco_ids[i][0]
+                            # Calculate 3D position based on square size
+                            row = corner_id // 7  # For a 6x6 board, there are 7 corners in each direction
+                            col = corner_id % 7
+                            objPoints.append([col * 0.3048/6, row * 0.3048/6, 0])
+                            imgPoints.append(charuco_corners[i][0])
 
-                                # Convert to numpy arrays
-                                objPoints = np.array(objPoints, dtype=np.float32)
-                                imgPoints = np.array(imgPoints, dtype=np.float32)
+                        # Convert to numpy arrays
+                        objPoints = np.array(objPoints, dtype=np.float32)
+                        imgPoints = np.array(imgPoints, dtype=np.float32)
 
-                                # Use solvePnP to get pose
-                                retval, charuco_rvec, charuco_tvec = cv2.solvePnP(
-                                    objPoints,
-                                    imgPoints,
-                                    self.camera_matrix,
-                                    self.dist_coeffs
-                                )
-                            else:
-                                retval = False
-                                charuco_rvec = None
-                                charuco_tvec = None
-                        except Exception as e:
-                            print(f"Error estimating CharucoBoard pose with solvePnP: {e}")
-                            retval = False
-                            charuco_rvec = None
-                            charuco_tvec = None
+                        # Use solvePnP to get pose
+                        retval, charuco_rvec, charuco_tvec = cv2.solvePnP(
+                            objPoints,
+                            imgPoints,
+                            self.camera_matrix,
+                            self.dist_coeffs
+                        )
                     else:
-                        # For older OpenCV versions, use the traditional API
-                        retval, charuco_rvec, charuco_tvec = cv2.aruco.estimatePoseCharucoBoard(
-                            charucoCorners=charuco_corners,
-                            charucoIds=charuco_ids,
-                            board=charuco_board,
-                            cameraMatrix=self.camera_matrix,
-                            distCoeffs=self.dist_coeffs,
-                            rvec=None,
-                            tvec=None
-                        )
+                        retval = False
+                        charuco_rvec = None
+                        charuco_tvec = None
 
                     if retval:
                         # Draw the CharucoBoard axes
@@ -1754,104 +1546,46 @@ class OakDArUcoDetector:
                 except Exception as e:
                     print(f"Error estimating ChArUco board pose: {e}")
 
-            # Estimate pose of each individual marker
+            # Estimate pose of each individual marker using OpenCV 4.10's solvePnP
             try:
                 # Ensure we have valid calibration data
                 if self.camera_matrix is not None and self.dist_coeffs is not None:
-                    # Handle API changes in OpenCV 4.10
-                    if cv2.__version__.startswith("4.10"):
-                        # For OpenCV 4.10, use solvePnP approach as the API changed
-                        rvecs = []
-                        tvecs = []
+                    # For OpenCV 4.10, use solvePnP approach
+                    rvecs = []
+                    tvecs = []
 
-                        # Process each marker individually
-                        for i in range(len(corners)):
-                            # Create object points for a square marker
-                            objPoints = np.array([
-                                [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                [MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
-                                [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
-                            ], dtype=np.float32)
+                    # Process each marker individually
+                    for i in range(len(corners)):
+                        # Create object points for a square marker
+                        objPoints = np.array([
+                            [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                            [MARKER_SIZE/2, MARKER_SIZE/2, 0],
+                            [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
+                            [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
+                        ], dtype=np.float32)
 
-                            # Get image points from corners
-                            imgPoints = corners[i][0].astype(np.float32)
+                        # Get image points from corners
+                        imgPoints = corners[i][0].astype(np.float32)
 
-                            # Use solvePnP to get pose
-                            success, rvec, tvec = cv2.solvePnP(
-                                objPoints,
-                                imgPoints,
-                                self.camera_matrix,
-                                self.dist_coeffs
-                            )
+                        # Use solvePnP to get pose
+                        success, rvec, tvec = cv2.solvePnP(
+                            objPoints,
+                            imgPoints,
+                            self.camera_matrix,
+                            self.dist_coeffs
+                        )
 
-                            if success:
-                                rvecs.append(rvec)
-                                tvecs.append(tvec)
+                        if success:
+                            rvecs.append(rvec)
+                            tvecs.append(tvec)
 
-                        # Convert to numpy arrays with the same shape as the original function
-                        if len(rvecs) > 0:
-                            rvecs = np.array(rvecs)
-                            tvecs = np.array(tvecs)
-                        else:
-                            rvecs = None
-                            tvecs = None
+                    # Convert to numpy arrays with the same shape as the original function
+                    if len(rvecs) > 0:
+                        rvecs = np.array(rvecs)
+                        tvecs = np.array(tvecs)
                     else:
-                        # For other versions, try the traditional API first
-                        try:
-                            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                                corners,
-                                MARKER_SIZE,
-                                self.camera_matrix,
-                                self.dist_coeffs
-                            )
-                        except AttributeError:
-                            # For OpenCV 4.10, try alternative approach
-                            try:
-                                # Create temporary arrays to store results
-                                rvecs = []
-                                tvecs = []
-
-                                # Process each marker individually
-                                for i in range(len(corners)):
-                                    # Create object points for a square marker
-                                    objPoints = np.array([
-                                        [-MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                        [MARKER_SIZE/2, MARKER_SIZE/2, 0],
-                                        [MARKER_SIZE/2, -MARKER_SIZE/2, 0],
-                                        [-MARKER_SIZE/2, -MARKER_SIZE/2, 0]
-                                    ], dtype=np.float32)
-
-                                    # Get image points from corners
-                                    imgPoints = corners[i][0].astype(np.float32)
-
-                                    # Use solvePnP to get pose
-                                    success, rvec, tvec = cv2.solvePnP(
-                                        objPoints,
-                                        imgPoints,
-                                        self.camera_matrix,
-                                        self.dist_coeffs
-                                    )
-
-                                    if success:
-                                        rvecs.append(rvec)
-                                        tvecs.append(tvec)
-
-                                # Convert to numpy arrays with the same shape as the original function
-                                if len(rvecs) > 0:
-                                    rvecs = np.array(rvecs)
-                                    tvecs = np.array(tvecs)
-                                else:
-                                    rvecs = None
-                                    tvecs = None
-                            except Exception as e:
-                                print(f"Alternative pose estimation failed: {e}")
-                                rvecs = None
-                                tvecs = None
-                        except Exception as e:
-                            print(f"Alternative pose estimation failed: {e}")
-                            rvecs = None
-                            tvecs = None
+                        rvecs = None
+                        tvecs = None
 
                     # Check for valid pose data
                     if rvecs is not None and tvecs is not None:
