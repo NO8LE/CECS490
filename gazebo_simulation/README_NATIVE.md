@@ -4,7 +4,7 @@ This document explains how to run the Gazebo simulation for autonomous precision
 
 ## Prerequisites
 
-- Ubuntu 20.04 or newer
+- Ubuntu 20.04 or newer, or Debian 12 (bookworm)
 - Gazebo 11.0 or newer (standalone installation, not from ROS)
 - Python 3.8+
 - ArduPilot SITL (optional, for full flight control)
@@ -12,11 +12,48 @@ This document explains how to run the Gazebo simulation for autonomous precision
 ## Installation
 
 1. Install Gazebo standalone (if not already installed):
+
+### For Ubuntu 20.04 (Focal):
 ```bash
 sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
 wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
 sudo apt update
-sudo apt install gazebo11 libgazebo11-dev
+sudo apt install gazebo libgazebo-dev gazebo-common
+```
+
+### For newer Ubuntu versions:
+Use Gazebo Harmonic (the newer Gazebo system):
+```bash
+# Install Gazebo Harmonic
+sudo apt-get update
+sudo apt-get install gz-harmonic
+
+# Or install the development packages for a specific version
+# Note: The version numbers for sim and msgs can be different, as they're separate components
+# Check available packages with: apt search libgz-sim apt search libgz-msgs
+sudo apt install libgz-sim-dev libgz-msgs-dev gazebo-common
+```
+
+### For Debian 12 (bookworm):
+```bash
+# Add Gazebo repository
+sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/debian-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
+
+# If the above key method doesn't work on newer Debian, use this instead:
+# wget https://packages.osrfoundation.org/gazebo.key -O /tmp/gazebo.key
+# gpg --dearmor < /tmp/gazebo.key | sudo tee /usr/share/keyrings/gazebo-archive-keyring.gpg > /dev/null
+# echo "deb [signed-by=/usr/share/keyrings/gazebo-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/debian-stable `lsb_release -cs` main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list
+
+sudo apt update
+
+# Install Gazebo packages
+sudo apt install gazebo libgazebo-dev gazebo-common
+
+# If the classic Gazebo isn't available, you can install Gazebo Garden or newer:
+# sudo apt install gz-garden
+# or check available versions:
+# apt search gz-garden
 ```
 
 2. Install required Python packages:
