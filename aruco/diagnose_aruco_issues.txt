@@ -1,0 +1,506 @@
+
+DIAGNOSING ARUCO MODULE IN OPENCV 4.10.0
+
+OPENCV INFORMATION:
+OpenCV version: 4.10.0
+
+ArUco module attributes:
+  ARUCO_CCW_CENTER = 0
+  ARUCO_CW_TOP_LEFT_CORNER = 1
+  ArucoDetector = type
+  Board = type
+  CORNER_REFINE_APRILTAG = 3
+  CORNER_REFINE_CONTOUR = 2
+  CORNER_REFINE_NONE = 0
+  CORNER_REFINE_SUBPIX = 1
+  CharucoBoard = type
+  CharucoDetector = type
+  CharucoParameters = type
+  DICT_4X4_100 = 1
+  DICT_4X4_1000 = 3
+  DICT_4X4_250 = 2
+  DICT_4X4_50 = 0
+  DICT_5X5_100 = 5
+  DICT_5X5_1000 = 7
+  DICT_5X5_250 = 6
+  DICT_5X5_50 = 4
+  DICT_6X6_100 = 9
+  DICT_6X6_1000 = 11
+  DICT_6X6_250 = 10
+  DICT_6X6_50 = 8
+  DICT_7X7_100 = 13
+  DICT_7X7_1000 = 15
+  DICT_7X7_250 = 14
+  DICT_7X7_50 = 12
+  DICT_APRILTAG_16H5 = 17
+  DICT_APRILTAG_16h5 = 17
+  DICT_APRILTAG_25H9 = 18
+  DICT_APRILTAG_25h9 = 18
+  DICT_APRILTAG_36H10 = 19
+  DICT_APRILTAG_36H11 = 20
+  DICT_APRILTAG_36h10 = 19
+  DICT_APRILTAG_36h11 = 20
+  DICT_ARUCO_MIP_36H12 = 21
+  DICT_ARUCO_MIP_36h12 = 21
+  DICT_ARUCO_ORIGINAL = 16
+  DetectorParameters = type
+  Dictionary = type
+  Dictionary_getBitsFromByteList = builtin_function_or_method
+  Dictionary_getByteListFromBits = builtin_function_or_method
+  EstimateParameters = type
+  GridBoard = type
+  RefineParameters = type
+  calibrateCameraAruco = builtin_function_or_method
+  calibrateCameraArucoExtended = builtin_function_or_method
+  calibrateCameraCharuco = builtin_function_or_method
+  calibrateCameraCharucoExtended = builtin_function_or_method
+  detectCharucoDiamond = builtin_function_or_method
+  detectMarkers = builtin_function_or_method
+  drawCharucoDiamond = builtin_function_or_method
+  drawDetectedCornersCharuco = builtin_function_or_method
+  drawDetectedDiamonds = builtin_function_or_method
+  drawDetectedMarkers = builtin_function_or_method
+  drawPlanarBoard = builtin_function_or_method
+  estimatePoseBoard = builtin_function_or_method
+  estimatePoseCharucoBoard = builtin_function_or_method
+  estimatePoseSingleMarkers = builtin_function_or_method
+  extendDictionary = builtin_function_or_method
+  generateImageMarker = builtin_function_or_method
+  getBoardObjectAndImagePoints = builtin_function_or_method
+  getPredefinedDictionary = builtin_function_or_method
+  interpolateCornersCharuco = builtin_function_or_method
+  refineDetectedMarkers = builtin_function_or_method
+  testCharucoCornersCollinear = builtin_function_or_method
+
+==================================================
+
+TESTING DICTIONARY CREATION:
+
+Testing OpenCV 4.10 dictionary creation methods:
+  ✓ Method 1: Dictionary constructor with marker size works
+  ✓ Method 2: getPredefinedDictionary works
+  ✗ Method 3: Dictionary_get fails: module 'cv2.aruco' has no attribute 'Dictionary_get'
+
+Testing DICT_4X4_50 (marker size: 4):
+  ✓ Created with Dictionary constructor and marker size 4
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_4X4_100 (marker size: 4):
+  ✓ Created with Dictionary constructor and marker size 4
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_4X4_250 (marker size: 4):
+  ✓ Created with Dictionary constructor and marker size 4
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_4X4_1000 (marker size: 4):
+  ✓ Created with Dictionary constructor and marker size 4
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_5X5_50 (marker size: 5):
+  ✓ Created with Dictionary constructor and marker size 5
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_5X5_100 (marker size: 5):
+  ✓ Created with Dictionary constructor and marker size 5
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_5X5_250 (marker size: 5):
+  ✓ Created with Dictionary constructor and marker size 5
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_5X5_1000 (marker size: 5):
+  ✓ Created with Dictionary constructor and marker size 5
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_6X6_50 (marker size: 6):
+  ✓ Created with Dictionary constructor and marker size 6
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_6X6_100 (marker size: 6):
+  ✓ Created with Dictionary constructor and marker size 6
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_6X6_250 (marker size: 6):
+  ✓ Created with Dictionary constructor and marker size 6
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_6X6_1000 (marker size: 6):
+  ✓ Created with Dictionary constructor and marker size 6
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_7X7_50 (marker size: 7):
+  ✓ Created with Dictionary constructor and marker size 7
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_7X7_100 (marker size: 7):
+  ✓ Created with Dictionary constructor and marker size 7
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_7X7_250 (marker size: 7):
+  ✓ Created with Dictionary constructor and marker size 7
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_7X7_1000 (marker size: 7):
+  ✓ Created with Dictionary constructor and marker size 7
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+Testing DICT_ARUCO_ORIGINAL (marker size: 6):
+  ✓ Created with Dictionary constructor and marker size 6
+  ℹ Cannot get marker size (normal for 4.10): 'cv2.aruco.Dictionary' object has no attribute 'getMarkerSize'
+
+SUCCESSFUL DICTIONARIES:
+  DICT_4X4_50 (marker size: 4, method: Dictionary)
+  DICT_4X4_100 (marker size: 4, method: Dictionary)
+  DICT_4X4_250 (marker size: 4, method: Dictionary)
+  DICT_4X4_1000 (marker size: 4, method: Dictionary)
+  DICT_5X5_50 (marker size: 5, method: Dictionary)
+  DICT_5X5_100 (marker size: 5, method: Dictionary)
+  DICT_5X5_250 (marker size: 5, method: Dictionary)
+  DICT_5X5_1000 (marker size: 5, method: Dictionary)
+  DICT_6X6_50 (marker size: 6, method: Dictionary)
+  DICT_6X6_100 (marker size: 6, method: Dictionary)
+  DICT_6X6_250 (marker size: 6, method: Dictionary)
+  DICT_6X6_1000 (marker size: 6, method: Dictionary)
+  DICT_7X7_50 (marker size: 7, method: Dictionary)
+  DICT_7X7_100 (marker size: 7, method: Dictionary)
+  DICT_7X7_250 (marker size: 7, method: Dictionary)
+  DICT_7X7_1000 (marker size: 7, method: Dictionary)
+  DICT_ARUCO_ORIGINAL (marker size: 6, method: Dictionary)
+
+==================================================
+
+TESTING MARKER GENERATION:
+
+Testing marker generation with DICT_4X4_50 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_4X4_100 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_4X4_250 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_4X4_1000 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_5X5_50 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_5X5_100 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_5X5_250 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_5X5_1000 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_6X6_50 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_6X6_100 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_6X6_250 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_6X6_1000 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_7X7_50 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_7X7_100 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_7X7_250 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_7X7_1000 (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+Testing marker generation with DICT_ARUCO_ORIGINAL (using Dictionary):
+  ✗ cv2.aruco.generateImageMarker failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+  ✗ cv2.aruco.drawMarker failed: module 'cv2.aruco' has no attribute 'drawMarker'
+  ✗ dictionary.drawMarker failed: 'cv2.aruco.Dictionary' object has no attribute 'drawMarker'
+  ✗ All marker generation methods failed
+
+SUCCESSFUL MARKER GENERATION:
+  None
+
+==================================================
+
+TESTING DETECTOR CREATION:
+
+Testing detector creation with DICT_4X4_50 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_4X4_100 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_4X4_250 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_4X4_1000 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_5X5_50 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_5X5_100 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_5X5_250 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_5X5_1000 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_6X6_50 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_6X6_100 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_6X6_250 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_6X6_1000 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_7X7_50 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_7X7_100 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_7X7_250 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_7X7_1000 (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+Testing detector creation with DICT_ARUCO_ORIGINAL (using Dictionary):
+  ✓ Created detector parameters using DetectorParameters()
+  ✓ Created ArucoDetector
+
+SUCCESSFUL DETECTOR CREATION:
+  DICT_4X4_50 (marker size: 4, using Dictionary with ArucoDetector)
+  DICT_4X4_100 (marker size: 4, using Dictionary with ArucoDetector)
+  DICT_4X4_250 (marker size: 4, using Dictionary with ArucoDetector)
+  DICT_4X4_1000 (marker size: 4, using Dictionary with ArucoDetector)
+  DICT_5X5_50 (marker size: 5, using Dictionary with ArucoDetector)
+  DICT_5X5_100 (marker size: 5, using Dictionary with ArucoDetector)
+  DICT_5X5_250 (marker size: 5, using Dictionary with ArucoDetector)
+  DICT_5X5_1000 (marker size: 5, using Dictionary with ArucoDetector)
+  DICT_6X6_50 (marker size: 6, using Dictionary with ArucoDetector)
+  DICT_6X6_100 (marker size: 6, using Dictionary with ArucoDetector)
+  DICT_6X6_250 (marker size: 6, using Dictionary with ArucoDetector)
+  DICT_6X6_1000 (marker size: 6, using Dictionary with ArucoDetector)
+  DICT_7X7_50 (marker size: 7, using Dictionary with ArucoDetector)
+  DICT_7X7_100 (marker size: 7, using Dictionary with ArucoDetector)
+  DICT_7X7_250 (marker size: 7, using Dictionary with ArucoDetector)
+  DICT_7X7_1000 (marker size: 7, using Dictionary with ArucoDetector)
+  DICT_ARUCO_ORIGINAL (marker size: 6, using Dictionary with ArucoDetector)
+
+==================================================
+
+TESTING CHARUCOBOARD CREATION:
+
+Testing CharucoBoard creation with DICT_4X4_50 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_4X4_100 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_4X4_250 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_4X4_1000 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_5X5_50 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_5X5_100 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_5X5_250 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_5X5_1000 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_6X6_50 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_6X6_100 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_6X6_250 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_6X6_1000 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_7X7_50 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_7X7_100 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_7X7_250 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_7X7_1000 (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+Testing CharucoBoard creation with DICT_ARUCO_ORIGINAL (using Dictionary):
+  ✓ Created CharucoBoard using constructor
+  ✗ Board draw method failed: 'cv2.aruco.CharucoBoard' object has no attribute 'draw'
+  ✗ Board generateImage method failed: OpenCV(4.10.0) /mnt/backup/opencv410_build/opencv/modules/objdetect/src/aruco/aruco_dictionary.cpp:198: error: (-215:Assertion failed) byteList.total() > 0 && byteList.total() >= (unsigned int)markerSize * markerSize / 8 && byteList.total() <= (unsigned int)markerSize * markerSize / 8 + 1 in function 'getBitsFromByteList'
+
+
+SUCCESSFUL CHARUCOBOARD CREATION:
+  None
+
+==================================================
+
+DIAGNOSTIC SUMMARY:
+Successful dictionaries: 17
+Successful marker generation: 0
+Successful detector creation: 17
+Successful CharucoBoard creation: 0
+
+CRITICAL ISSUE: No markers could be generated.
+This suggests issues with the marker generation functions in OpenCV 4.10.0.
