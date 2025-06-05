@@ -115,21 +115,45 @@ except ImportError:
     print("  pip install depthai")
     sys.exit(1)
 
+# Add the aruco directory to the Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'aruco'))
+
+# Import the OpenCV 4.10.0 ArUco fixes
+try:
+    from opencv410_aruco_fix import (
+        create_dictionary_fixed,
+        generate_marker_fixed,
+        create_charuco_board_fixed,
+        generate_charuco_board_image_fixed,
+        OpenCV410ArUcoFix
+    )
+    print("OpenCV 4.10.0 ArUco fixes loaded successfully")
+    USE_ARUCO_FIX = True
+except ImportError:
+    print("Warning: OpenCV 4.10.0 ArUco fixes not found. Using standard methods.")
+    USE_ARUCO_FIX = False
+
 # Verify ArUco module is working
 try:
     # For OpenCV 4.10.0, use the new API with marker size parameter
     if cv2.__version__.startswith("4.10"):
         # Create a dictionary with the required marker size parameter
         ARUCO_DICT_TYPE = cv2.aruco.DICT_6X6_250
-        aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+        
+        if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
+            print("Using fixed ArUco dictionary creation for OpenCV 4.10.0")
+            aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
+            dictionary_method = "opencv4.10_fixed"
+        else:
+            aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+            
+            # Verify by creating a detector (new API)
+            detector_params = cv2.aruco.DetectorParameters()
+            detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
 
-        # Verify by creating a detector (new API)
-        detector_params = cv2.aruco.DetectorParameters()
-        detector = cv2.aruco.ArucoDetector(aruco_dict, detector_params)
-
-        # If we get here without errors, the ArUco module is working
-        print(f"ArUco module successfully loaded and verified for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
-        dictionary_method = "opencv4.10_plus"
+            # If we get here without errors, the ArUco module is working
+            print(f"ArUco module successfully loaded and verified for OpenCV {cv2.__version__} (using Dictionary with markerSize)")
+            dictionary_method = "opencv4.10_plus"
     else:
         # Try older API methods for earlier OpenCV versions
         try:
@@ -369,8 +393,14 @@ class OakDArUcoDetector:
             # For OpenCV 4.10.0 - use the new API consistently
             try:
                 print(f"Initializing ArUco detector for OpenCV {cv2.__version__}")
-                # Create dictionary with marker size parameter
-                self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                
+                # Use the fixed dictionary creation for OpenCV 4.10.0
+                if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
+                    print("Initializing ArUco detector with OpenCV 4.10.0 fixes")
+                    self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
+                else:
+                    # Create dictionary with marker size parameter
+                    self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
 
                 # Create and configure detector parameters
                 self.aruco_params = cv2.aruco.DetectorParameters()
@@ -1294,15 +1324,25 @@ class OakDArUcoDetector:
             try:
                 # Make sure we have a detector
                 if not hasattr(self, 'aruco_detector') or self.aruco_detector is None:
-                    # Create detector on-the-fly if needed - use getPredefinedDictionary which works best with OpenCV 4.10
-                    try:
-                        self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
-                        print("Using getPredefinedDictionary for detection (primary method)")
-                    except Exception as e:
-                        print(f"Error with getPredefinedDictionary: {e}")
-                        # Fallback to Dictionary constructor
-                        self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
-                        print("Using Dictionary constructor with markerSize (fallback)")
+                    # Create detector on-the-fly if needed - use fixed dictionary for OpenCV 4.10
+                    if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
+                        try:
+                            self.aruco_dict = create_dictionary_fixed(ARUCO_DICT_TYPE)
+                            print("Using fixed ArUco dictionary creation for detection (OpenCV 4.10.0 fix)")
+                        except Exception as e:
+                            print(f"Error with fixed dictionary creation: {e}")
+                            # Fallback to standard method
+                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                            print("Falling back to Dictionary constructor with markerSize")
+                    else:
+                        try:
+                            self.aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT_TYPE)
+                            print("Using getPredefinedDictionary for detection (primary method)")
+                        except Exception as e:
+                            print(f"Error with getPredefinedDictionary: {e}")
+                            # Fallback to Dictionary constructor
+                            self.aruco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
+                            print("Using Dictionary constructor with markerSize (fallback)")
 
                     self.aruco_params = cv2.aruco.DetectorParameters()
 
@@ -1461,13 +1501,23 @@ class OakDArUcoDetector:
                             charuco_dict = cv2.aruco.Dictionary(ARUCO_DICT_TYPE, 6)
                             print("Using Dictionary constructor for CharucoBoard detection (fallback)")
 
-                        # Create CharucoBoard with the constructor
-                        charuco_board = cv2.aruco.CharucoBoard(
-                            (6, 6),  # (squaresX, squaresY) as a tuple
-                            0.3048/6,  # squareLength: Board is 12 inches divided into 6 squares
-                            0.3048/6*0.75,  # markerLength: Markers are 75% of square size
-                            charuco_dict
-                        )
+                        # Create CharucoBoard with the constructor or fixed method
+                        if cv2.__version__.startswith("4.10") and USE_ARUCO_FIX:
+                            charuco_board = create_charuco_board_fixed(
+                                squares_x=6, 
+                                squares_y=6, 
+                                square_length=0.3048/6, 
+                                marker_length=0.3048/6*0.75, 
+                                dict_type=ARUCO_DICT_TYPE
+                            )
+                            print("Using fixed CharucoBoard creation for OpenCV 4.10.0")
+                        else:
+                            charuco_board = cv2.aruco.CharucoBoard(
+                                (6, 6),  # (squaresX, squaresY) as a tuple
+                                0.3048/6,  # squareLength: Board is 12 inches divided into 6 squares
+                                0.3048/6*0.75,  # markerLength: Markers are 75% of square size
+                                charuco_dict
+                            )
 
                         # For OpenCV 4.10, we need to use the CharucoDetector
                         charuco_params = cv2.aruco.CharucoParameters()
