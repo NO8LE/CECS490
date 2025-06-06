@@ -69,3 +69,11 @@ detection_timeout: 300  # seconds (5 minutes)
 validation_timeout: 30  # seconds
 loiter_timeout: 60  # seconds
 rtk_timeout: 60  # seconds
+
+# Event logging settings
+event_logging_enabled: true  # Enable detailed event logging
+event_log_dir: mission_logs  # Directory to store event logs
+event_log_format: json  # Format for event logs (json, csv, text)
+event_console_output: true  # Whether to output events to console
+ugv_delivery_distance_threshold: 1.0  # Distance (meters) to consider UGV at target
+ugv_delivery_time_threshold: 5.0  # Time (seconds) UGV must remain at target to consider delivery complete

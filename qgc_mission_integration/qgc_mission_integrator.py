@@ -35,6 +35,7 @@ from qgc_mission_integration.mission_monitor import MissionMonitor, MissionStatu
 from qgc_mission_integration.aruco_detection_manager import ArUcoDetectionManager
 from qgc_mission_integration.safety_manager import SafetyManager, SafetyLevel
 from qgc_mission_integration.rtk_gps_interface import RTKGPSInterface
+from qgc_mission_integration.mission_event_logger import MissionEventLogger
 
 # Optional import for UGV Manager
 try:
@@ -104,6 +105,18 @@ class QGCMissionIntegrator:
         self.ugv_coordination_active = False
         self.ugv_command_start_time = None
         self.post_landing_behavior = self.config.get('post_landing_behavior', 'loiter')
+        
+        # Event logging
+        self.event_logging_enabled = self.config.get('event_logging_enabled', True)
+        self.event_logger = None
+        if self.event_logging_enabled:
+            event_log_dir = self.config.get('event_log_dir', 'mission_logs')
+            event_console_output = self.config.get('event_console_output', True)
+            self.event_logger = MissionEventLogger(
+                log_dir=event_log_dir, 
+                enable_console=event_console_output
+            )
+            logger.info("Mission event logger initialized")
         
         # Initialize components
         self._initialize_components()
@@ -294,6 +307,16 @@ class QGCMissionIntegrator:
                 
             logger.info("QGC mission integrator started successfully")
             
+            # Log UAV start event
+            if self.event_logging_enabled and self.event_logger:
+                vehicle_state = self.mavlink.get_vehicle_state()
+                self.event_logger.log_uav_start({
+                    "mode": vehicle_state.get('mode', 'UNKNOWN'),
+                    "battery": f"{vehicle_state.get('battery_remaining', 0)}%",
+                    "position": vehicle_state.get('position', (0, 0, 0))
+                })
+                logger.info("Logged UAV start event")
+            
             # Transition to monitoring state
             self._transition_to(PrecisionLandingState.MONITORING)
             
@@ -325,6 +348,16 @@ class QGCMissionIntegrator:
             logger.info("Stopping UGV manager")
             self.ugv_manager.stop_command_thread()
             self.ugv_manager.disconnect()
+        
+        # Log UAV end event
+        if self.event_logging_enabled and self.event_logger:
+            vehicle_state = self.mavlink.get_vehicle_state()
+            self.event_logger.log_uav_end({
+                "mode": vehicle_state.get('mode', 'UNKNOWN'),
+                "battery": f"{vehicle_state.get('battery_remaining', 0)}%",
+                "final_state": self.state.value
+            })
+            logger.info("Logged UAV end event")
         
         logger.info("QGC mission integrator stopped")
         
@@ -410,6 +443,13 @@ class QGCMissionIntegrator:
             'current_state': new_state,
             'timestamp': time.time()
         })
+        
+        # Log state transition event
+        if self.event_logging_enabled and self.event_logger:
+            self.event_logger.log_state_transition(
+                previous_state=old_state.value,
+                current_state=new_state.value
+            )
         
     def _check_safety(self) -> None:
         """Check safety conditions and handle emergencies"""
@@ -566,6 +606,16 @@ class QGCMissionIntegrator:
         if self.rtk_coordinates:
             logger.info(f"RTK coordinates acquired: {self.rtk_coordinates}")
             
+            # Log ArUco location with RTK coordinates
+            if self.event_logging_enabled and self.event_logger:
+                self.event_logger.log_aruco_location(
+                    lat=self.rtk_coordinates.get('latitude', 0.0),
+                    lon=self.rtk_coordinates.get('longitude', 0.0),
+                    alt=self.rtk_coordinates.get('altitude_m', 0.0),
+                    accuracy=self.rtk_coordinates.get('quality', 'unknown')
+                )
+                logger.info("Logged ArUco location with RTK coordinates")
+            
             # Save coordinates to file
             self._save_rtk_coordinates()
             
@@ -651,6 +701,15 @@ class QGCMissionIntegrator:
                 if not self.ugv_manager.connect():
                     logger.warning("Failed to connect to UGV, continuing with RTL")
                 else:
+                    # Log UGV start event
+                    if self.event_logging_enabled and self.event_logger:
+                        self.event_logger.log_ugv_start({
+                            "ip": self.ugv_manager.ugv_ip,
+                            "port": self.ugv_manager.ugv_port,
+                            "mode": "one_time_command"
+                        })
+                        logger.info("Logged UGV start event")
+                    
                     # Send target coordinates to UGV
                     lat = self.rtk_coordinates.get('latitude', 0.0)
                     lon = self.rtk_coordinates.get('longitude', 0.0)
@@ -659,6 +718,11 @@ class QGCMissionIntegrator:
                     logger.info(f"Sending target coordinates to UGV: {lat}, {lon}, {alt}")
                     if self.ugv_manager.send_position_target_global_int(lat, lon, alt):
                         logger.info("Target coordinates sent to UGV successfully")
+                        
+                        # Log UGV command sent event
+                        if self.event_logging_enabled and self.event_logger:
+                            self.event_logger.log_ugv_command_sent(lat, lon, alt, self.ugv_manager.ugv_ip)
+                            logger.info("Logged UGV command sent event")
                     else:
                         logger.warning("Failed to send target coordinates to UGV")
                         
@@ -694,6 +758,18 @@ class QGCMissionIntegrator:
                     logger.info("UGV command started successfully")
                     self.ugv_command_start_time = time.time()
                     self.ugv_coordination_active = True
+                    
+                    # Log UGV start event
+                    if self.event_logging_enabled and self.event_logger:
+                        self.event_logger.log_ugv_start({
+                            "ip": self.ugv_manager.ugv_ip,
+                            "port": self.ugv_manager.ugv_port,
+                            "mode": "continuous_command"
+                        })
+                        # Log command sent event
+                        self.event_logger.log_ugv_command_sent(lat, lon, alt, self.ugv_manager.ugv_ip)
+                        logger.info("Logged UGV start and command events")
+                    
                     self._transition_to(PrecisionLandingState.UGV_COMMAND_ACTIVE)
                 else:
                     logger.error("Failed to start UGV command")
@@ -718,8 +794,103 @@ class QGCMissionIntegrator:
             ugv_coordination_timeout = self.config.get('ugv_coordination_timeout', 60)
             elapsed = time.time() - self.ugv_command_start_time
             
-            if elapsed > ugv_coordination_timeout:
-                logger.info(f"UGV coordination timeout after {elapsed:.1f} seconds")
+            # Variables to track UGV state
+            static_variables = getattr(self, '_ugv_state_vars', None)
+            if static_variables is None:
+                # Initialize state tracking variables if not already present
+                self._ugv_state_vars = {
+                    'receipt_confirmed': False,
+                    'delivery_confirmed': False,
+                    'delivery_start_time': None,
+                    'last_status_check': 0
+                }
+                static_variables = self._ugv_state_vars
+            
+            # Check for heartbeat receipt confirmation (only log once)
+            if not static_variables['receipt_confirmed']:
+                if self.event_logging_enabled and self.event_logger:
+                    self.event_logger.log_ugv_receipt_confirmed({
+                        "status": "acknowledged",
+                        "heartbeat_healthy": True
+                    })
+                    logger.info("Logged UGV receipt confirmation")
+                static_variables['receipt_confirmed'] = True
+            
+            # Only check delivery status every few seconds to avoid excessive calculations
+            current_time = time.time()
+            if current_time - static_variables['last_status_check'] > 2.0:
+                static_variables['last_status_check'] = current_time
+                
+                # Check if UGV has reached target
+                target_reached = False
+                if hasattr(self.ugv_manager, 'get_current_position'):
+                    # If UGV manager can report position
+                    ugv_position = self.ugv_manager.get_current_position()
+                    if ugv_position and self.rtk_coordinates:
+                        # Calculate distance to target
+                        from math import radians, cos, sin, asin, sqrt
+                        
+                        def haversine(lat1, lon1, lat2, lon2):
+                            """Calculate distance between two lat/lon points in meters"""
+                            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+                            dlon = lon2 - lon1
+                            dlat = lat2 - lat1
+                            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                            c = 2 * asin(sqrt(a))
+                            r = 6371000  # Earth radius in meters
+                            return c * r
+                        
+                        # Get positions
+                        target_lat = self.rtk_coordinates.get('latitude', 0.0)
+                        target_lon = self.rtk_coordinates.get('longitude', 0.0)
+                        ugv_lat = ugv_position[0]
+                        ugv_lon = ugv_position[1]
+                        
+                        # Calculate distance
+                        distance = haversine(target_lat, target_lon, ugv_lat, ugv_lon)
+                        
+                        # Check if within delivery threshold
+                        delivery_threshold = self.config.get('ugv_delivery_distance_threshold', 1.0)
+                        if distance <= delivery_threshold:
+                            target_reached = True
+                            
+                            # If we've been at target for enough time, consider delivery confirmed
+                            if not static_variables['delivery_start_time']:
+                                static_variables['delivery_start_time'] = current_time
+                                logger.info(f"UGV reached target, distance: {distance:.2f}m")
+                            elif current_time - static_variables['delivery_start_time'] >= self.config.get('ugv_delivery_time_threshold', 5.0):
+                                # UGV has been at target for required time
+                                if not static_variables['delivery_confirmed']:
+                                    logger.info("UGV delivery confirmed")
+                                    # Log delivery event
+                                    if self.event_logging_enabled and self.event_logger:
+                                        self.event_logger.log_ugv_delivery({
+                                            "distance": distance,
+                                            "position": ugv_position,
+                                            "time_at_target": current_time - static_variables['delivery_start_time']
+                                        })
+                                        logger.info("Logged UGV delivery event")
+                                    static_variables['delivery_confirmed'] = True
+                        else:
+                            # Reset delivery timer if UGV moves away from target
+                            if static_variables['delivery_start_time'] and not static_variables['delivery_confirmed']:
+                                logger.info(f"UGV moved away from target, distance: {distance:.2f}m")
+                                static_variables['delivery_start_time'] = None
+                
+            # Check for timeout or if delivery is complete
+            if elapsed > ugv_coordination_timeout or static_variables['delivery_confirmed']:
+                if static_variables['delivery_confirmed']:
+                    logger.info("UGV delivery completed successfully")
+                else:
+                    logger.info(f"UGV coordination timeout after {elapsed:.1f} seconds")
+                
+                # Log UGV end event
+                if self.event_logging_enabled and self.event_logger:
+                    self.event_logger.log_ugv_end({
+                        "status": "mission_complete" if static_variables['delivery_confirmed'] else "timeout",
+                        "duration": elapsed
+                    })
+                    logger.info("Logged UGV end event")
                 
                 # Stop UGV command
                 self.ugv_manager.stop_command_thread()
@@ -730,11 +901,19 @@ class QGCMissionIntegrator:
             else:
                 # Still commanding UGV
                 remaining = ugv_coordination_timeout - elapsed
-                if int(remaining) % 10 == 0:  # Log every 10 seconds
+                if int(remaining) % 10 == 0 and remaining > 0:  # Log every 10 seconds
                     logger.info(f"UGV command active, {remaining:.0f} seconds remaining")
         else:
             # Lost connection to UGV
             logger.warning("Lost connection to UGV")
+            
+            # Log UGV end event if not already logged
+            if self.event_logging_enabled and self.event_logger:
+                self.event_logger.log_ugv_end({
+                    "status": "connection_lost",
+                    "duration": time.time() - self.ugv_command_start_time if self.ugv_command_start_time else 0
+                })
+                logger.info("Logged UGV disconnection event")
             
             # Stop UGV command if manager exists
             if self.ugv_manager:
@@ -825,6 +1004,19 @@ class QGCMissionIntegrator:
     def _on_target_confirmed(self, data: Dict[str, Any]) -> None:
         """Callback for target confirmed event"""
         logger.info(f"Target confirmed: ID {data.get('id')}")
+        
+        # Log ArUco discovery event
+        if self.event_logging_enabled and self.event_logger:
+            position = None
+            if 'position_3d' in data:
+                position = data['position_3d']
+            
+            self.event_logger.log_aruco_discovery(
+                marker_id=data.get('id', self.target_marker_id),
+                position=position,
+                confidence=data.get('confidence', 0.0)
+            )
+            logger.info("Logged ArUco discovery event")
         
         # If in monitoring state, transition to detection
         if self.state == PrecisionLandingState.MONITORING:
