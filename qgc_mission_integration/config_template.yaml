@@ -72,6 +72,10 @@ validation_timeout: 30  # seconds
 loiter_timeout: 60  # seconds
 rtk_timeout: 60  # seconds
 
+# Precision landing safety
+rtl_protection_altitude: 15.0  # meters - no precision landing above this altitude
+precision_landing_max_attempts: 1  # limit attempts per mission
+
 # Event logging settings
 event_logging_enabled: true  # Enable detailed event logging
 event_log_dir: mission_logs  # Directory to store event logs

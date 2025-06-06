@@ -99,6 +99,12 @@ class QGCMissionIntegrator:
         self.precision_landing_start_time = None
         self.precision_landing_complete = False
         
+        # Safety flags and counters
+        self.precision_landing_completed = False  # Flag for mission completion
+        self.precision_landing_attempts = 0  # Track number of attempts
+        self.max_precision_landing_attempts = self.config.get('precision_landing_max_attempts', 1)
+        self.rtl_protection_altitude = self.config.get('rtl_protection_altitude', 15.0)
+        
         # UGV coordination state
         self.ugv_enabled = self.config.get('ugv_enabled', False)
         self.ugv_manager = None
@@ -436,6 +442,19 @@ class QGCMissionIntegrator:
             # Record start time for precision landing
             self.precision_landing_start_time = time.time()
             self.precision_landing_complete = False
+            # Increment precision landing attempts counter
+            self.precision_landing_attempts += 1
+            logger.info(f"Precision landing attempt #{self.precision_landing_attempts} started")
+            
+        elif new_state == PrecisionLandingState.COMPLETE:
+            # Set the completion flag to prevent further landing attempts
+            self.precision_landing_completed = True
+            logger.info("Precision landing mission completed - no further attempts will be processed")
+            
+            # Stop ArUco detection to save resources and prevent re-detection
+            if hasattr(self, 'detection_manager') and self.detection_manager:
+                logger.info("Stopping ArUco detection after mission completion")
+                self.detection_manager.stop()
             
         # Notify callbacks
         self._notify_callbacks('state_changed', {
@@ -987,7 +1006,15 @@ class QGCMissionIntegrator:
         
         # If mission becomes active, transition to monitoring state
         if current == MissionStatus.ACTIVE:
-            self._transition_to(PrecisionLandingState.MONITORING)
+            # Only transition to MONITORING if we haven't completed a precision landing
+            # and we're not already in a terminal state
+            if (not self.precision_landing_completed and 
+                self.state not in [PrecisionLandingState.COMPLETE, PrecisionLandingState.ERROR]):
+                
+                logger.info("Mission active, transitioning to monitoring state")
+                self._transition_to(PrecisionLandingState.MONITORING)
+            else:
+                logger.info("Mission active but precision landing already completed - not transitioning to monitoring")
             
     def _on_waypoint_changed(self, data: Dict[str, Any]) -> None:
         """Callback for waypoint changed event"""
@@ -1018,6 +1045,10 @@ class QGCMissionIntegrator:
             )
             logger.info("Logged ArUco discovery event")
         
+        # Check if we can attempt precision landing
+        if not self._can_attempt_precision_landing():
+            return
+            
         # If in monitoring state, transition to detection
         if self.state == PrecisionLandingState.MONITORING:
             self._transition_to(PrecisionLandingState.TARGET_DETECTION)
@@ -1025,6 +1056,45 @@ class QGCMissionIntegrator:
         # If in detection state, transition to validation
         elif self.state == PrecisionLandingState.TARGET_DETECTION:
             self._transition_to(PrecisionLandingState.TARGET_VALIDATION)
+            
+    def _can_attempt_precision_landing(self) -> bool:
+        """
+        Check if we can attempt precision landing based on safety rules
+        
+        Returns:
+            True if safe to attempt precision landing, False otherwise
+        """
+        # Check if we've already completed a precision landing mission
+        if self.precision_landing_completed:
+            logger.info("Ignoring target detection - precision landing already completed")
+            return False
+            
+        # Check if we've reached the maximum number of attempts
+        if self.precision_landing_attempts >= self.max_precision_landing_attempts:
+            logger.info(f"Ignoring target detection - max attempts ({self.max_precision_landing_attempts}) reached")
+            return False
+            
+        # Check if we're in a terminal state
+        if self.state in [PrecisionLandingState.COMPLETE, PrecisionLandingState.ERROR]:
+            logger.info(f"Ignoring target detection - in terminal state: {self.state.value}")
+            return False
+            
+        # Check current altitude - don't try to land if too high (like during RTL)
+        vehicle_state = self.mavlink.get_vehicle_state()
+        current_alt = vehicle_state.get('relative_altitude', 0)
+        
+        if current_alt > self.rtl_protection_altitude:
+            logger.info(f"Ignoring target detection - altitude ({current_alt:.1f}m) above protection threshold ({self.rtl_protection_altitude:.1f}m)")
+            return False
+            
+        # Check current flight mode - avoid landing during RTL
+        mode = vehicle_state.get('mode', '')
+        if mode == 'RTL':
+            logger.info(f"Ignoring target detection - vehicle in RTL mode")
+            return False
+            
+        # All checks passed
+        return True
             
     def _on_safety_level_changed(self, level: SafetyLevel, emergency_conditions: List[str], warning_conditions: List[str]) -> None:
         """Callback for safety level changed event"""
