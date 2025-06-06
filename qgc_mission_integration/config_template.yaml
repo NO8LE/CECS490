@@ -1,0 +1,71 @@
+# QGC Mission Integrator Configuration Template
+# Copy this file and customize the settings for your specific setup
+
+# General settings
+target_marker_id: 5
+log_level: INFO
+log_file: qgc_mission_integrator.log
+
+# MAVLink settings
+mavlink_connection: udp:192.168.2.1:14550
+mavlink_baudrate: 921600
+mavlink_timeout: 10
+
+# Mission settings
+mission_file: mission.plan
+mission_monitor_read_only: false
+mission_check_interval: 1.0
+
+# Detection settings
+detection_mode: continuous  # 'continuous' or 'periodic'
+detection_interval: 5.0  # seconds, for periodic mode
+detection_confidence_threshold: 0.7
+detection_required_confirmations: 5
+detection_resolution: adaptive  # 'low', 'medium', 'high', or 'adaptive'
+detection_use_cuda: true  # Enable CUDA acceleration for detection if available
+
+# Precision landing settings
+landing_start_altitude: 10.0  # meters
+landing_final_approach_altitude: 1.0  # meters
+landing_descent_rate: 0.3  # meters/second
+landing_center_tolerance: 0.3  # meters
+landing_timeout: 120  # seconds
+
+# Safety settings
+safety_check_interval: 0.5  # seconds
+safety_min_battery_voltage: 22.0  # volts
+safety_min_battery_remaining: 15  # percentage
+safety_max_mission_time: 600  # seconds (10 minutes)
+safety_max_altitude: 30.0  # meters
+safety_min_altitude: 2.0  # meters
+safety_emergency_override: true  # Whether to override mission controller in emergency
+
+# RTK GPS settings
+rtk_server_url: http://localhost:8000
+rtk_check_interval: 1.0  # seconds
+rtk_auto_connect: true
+rtk_save_file: rtk_coordinates.json
+
+# Video streaming settings
+enable_streaming: false
+stream_ip: 192.168.2.1
+stream_port: 5600
+stream_bitrate: 4000000  # bits/second
+
+# UGV coordination settings
+ugv_enabled: false  # Enable UGV coordination
+ugv_ip: 192.168.2.6  # IP address of the UGV
+ugv_port: 14550  # MAVLink UDP port for UGV
+ugv_system_id: 2  # MAVLink system ID of the UGV
+ugv_component_id: 1  # MAVLink component ID of the UGV autopilot
+ugv_message_rate: 2.0  # Rate to send position commands (Hz, >2Hz for PX4 OFFBOARD)
+ugv_heartbeat_timeout: 5.0  # Time to consider UGV connection lost (seconds)
+ugv_coordination_timeout: 60  # Maximum time to coordinate with UGV (seconds)
+ugv_loiter_altitude: 10.0  # Altitude to loiter at while commanding UGV (meters)
+post_landing_behavior: loiter  # 'loiter' to hover and command UGV, 'rtl' to return to launch
+
+# Detection timeouts
+detection_timeout: 300  # seconds (5 minutes)
+validation_timeout: 30  # seconds
+loiter_timeout: 60  # seconds
+rtk_timeout: 60  # seconds
