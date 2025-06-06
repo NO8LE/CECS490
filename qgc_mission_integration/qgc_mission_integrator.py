@@ -209,7 +209,7 @@ class QGCMissionIntegrator:
             logger.info(f"Initializing MAVLink controller: {self.config['mavlink_connection']}")
             self.mavlink = MAVLinkController(
                 connection_string=self.config['mavlink_connection'],
-                baudrate=self.config.get('mavlink_baudrate', 921600)
+                config=self.config
             )
             
             # Initialize mission monitor
