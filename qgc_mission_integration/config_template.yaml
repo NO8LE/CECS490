@@ -7,7 +7,8 @@ log_level: INFO
 log_file: qgc_mission_integrator.log
 
 # MAVLink settings
-mavlink_connection: udp:192.168.2.1:14550
+# When running on the drone, connect directly to the autopilot via USB
+mavlink_connection: /dev/ttyACM0
 mavlink_baudrate: 921600
 mavlink_timeout: 10
 
@@ -41,7 +42,8 @@ safety_min_altitude: 2.0  # meters
 safety_emergency_override: true  # Whether to override mission controller in emergency
 
 # RTK GPS settings
-rtk_server_url: http://localhost:8000
+# Connect to the RTK server running on the GCS (192.168.2.1)
+rtk_server_url: http://192.168.2.1:8000
 rtk_check_interval: 1.0  # seconds
 rtk_auto_connect: true
 rtk_save_file: rtk_coordinates.json
