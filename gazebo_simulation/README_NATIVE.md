@@ -31,7 +31,7 @@ sudo apt-get install gz-harmonic
 # Or install the development packages for a specific version
 # Note: The version numbers for sim and msgs can be different, as they're separate components
 # Check available packages with: apt search libgz-sim apt search libgz-msgs
-sudo apt install libgz-sim-dev libgz-msgs-dev gazebo-common
+sudo apt install libgz-sim9-dev libgz-msgs11-dev gazebo-common
 ```
 
 ### For Debian 12 (bookworm):
